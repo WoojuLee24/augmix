@@ -40,6 +40,8 @@ import torch.nn.functional as F
 from torchvision import datasets
 from torchvision import transforms
 
+from losses import jsd
+
 parser = argparse.ArgumentParser(
     description='Trains a CIFAR Classifier',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -218,22 +220,24 @@ def train(net, train_loader, optimizer, scheduler):
       images_all = torch.cat(images, 0).cuda()
       targets = targets.cuda()
       logits_all = net(images_all)
-      logits_clean, logits_aug1, logits_aug2 = torch.split(
-          logits_all, images[0].size(0))
+      logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
 
       # Cross-entropy is only computed on clean images
       loss = F.cross_entropy(logits_clean, targets)
 
-      p_clean, p_aug1, p_aug2 = F.softmax(
-          logits_clean, dim=1), F.softmax(
-              logits_aug1, dim=1), F.softmax(
-                  logits_aug2, dim=1)
+      # p_clean, p_aug1, p_aug2 = F.softmax(
+      #     logits_clean, dim=1), F.softmax(
+      #         logits_aug1, dim=1), F.softmax(
+      #             logits_aug2, dim=1)
+      #
+      # # Clamp mixture distribution to avoid exploding KL divergence
+      # p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+      # loss += 12 * (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+      #               F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+      #               F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
 
-      # Clamp mixture distribution to avoid exploding KL divergence
-      p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
-      loss += 12 * (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
-                    F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
-                    F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+      jsd_loss = jsd(logits_clean, logits_aug1, logits_aug2)
+      loss += jsd_loss
 
     loss.backward()
     optimizer.step()
