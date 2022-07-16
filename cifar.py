@@ -112,7 +112,7 @@ parser.add_argument(
     '--save',
     '-s',
     type=str,
-    default='./snapshots',
+    default='/ws/data/log',
     help='Folder to save checkpoints.')
 parser.add_argument(
     '--resume',
@@ -301,10 +301,10 @@ def main():
 
   if args.dataset == 'cifar10':
     train_data = datasets.CIFAR10(
-        './data/cifar', train=True, transform=train_transform, download=True)
+        '/ws/data/cifar', train=True, transform=train_transform, download=True)
     test_data = datasets.CIFAR10(
-        './data/cifar', train=False, transform=test_transform, download=True)
-    base_c_path = './data/cifar/CIFAR-10-C/'
+        '/ws/data/cifar', train=False, transform=test_transform, download=True)
+    base_c_path = '/ws/data/cifar/CIFAR-10-C/'
     num_classes = 10
   else:
     train_data = datasets.CIFAR100(
