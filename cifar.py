@@ -40,415 +40,178 @@ import torch.nn.functional as F
 from torchvision import datasets
 from torchvision import transforms
 
-from losses import get_additional_loss
 from datasets import *
 from losses import get_additional_loss, CenterLoss
 from datasets.mixdataset import BaseDataset, AugMixDataset
-from datasets.concatdataset import ConcatDataset
 from feature_hook import FeatureHook
-from utils import plot_confusion_matrix
-from utils import plot_tsne
-import pandas as pd
+from utils import plot_tsne, plot_confusion_matrix
+from models.cifar.apis import train, train2, test, test_c, test_c_dg
+
 import wandb
 import random
-
-parser = argparse.ArgumentParser(
-    description='Trains a CIFAR Classifier',
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument(
-    '--dataset',
-    type=str,
-    default='cifar10',
-    choices=['cifar10', 'cifar100'],
-    help='Choose between CIFAR-10, CIFAR-100.')
-parser.add_argument(
-    '--aug',
-    '-aug',
-    type=str,
-    default='augmix',
-    choices=['none', 'augmix', 'pixmix', 'apr'],
-    help='Choose domain generalization augmentation methods')
-parser.add_argument(
-    '--model',
-    '-m',
-    type=str,
-    default='wrn',
-    choices=['wrn', 'allconv', 'densenet', 'resnext'],
-    help='Choose architecture.')
-# Optimization options
-parser.add_argument(
-    '--epochs', '-e', type=int, default=100, help='Number of epochs to train.')
-parser.add_argument(
-    '--learning-rate',
-    '-lr',
-    type=float,
-    default=0.1,
-    help='Initial learning rate.')
-parser.add_argument(
-    '--batch-size', '-b', type=int, default=128, help='Batch size.')
-parser.add_argument('--eval-batch-size', type=int, default=1000)
-parser.add_argument('--momentum', type=float, default=0.9, help='Momentum.')
-parser.add_argument(
-    '--decay',
-    '-wd',
-    type=float,
-    default=0.0005,
-    help='Weight decay (L2 penalty).')
-# WRN Architecture options
-parser.add_argument(
-    '--layers', default=40, type=int, help='total number of layers')
-parser.add_argument('--widen-factor', default=2, type=int, help='Widen factor')
-parser.add_argument(
-    '--droprate', default=0.0, type=float, help='Dropout probability')
-
-# AugMix options
-parser.add_argument(
-    '--mixture-width',
-    default=3,
-    type=int,
-    help='Number of augmentation chains to mix per augmented example')
-parser.add_argument(
-    '--mixture-depth',
-    default=-1,
-    type=int,
-    help='Depth of augmentation chains. -1 denotes stochastic depth in [1, 3]')
-parser.add_argument(
-    '--aug-severity',
-    default=3,
-    type=int,
-    help='Severity of base augmentation operators')
-parser.add_argument(
-    '--no-jsd',
-    '-nj',
-    action='store_true',
-    help='Turn off JSD consistency loss.')
-parser.add_argument(
-    '--additional-loss',
-    '-al',
-    default='jsd',
-    type=str,
-    choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss'],
-    help='Type of additional loss')
-parser.add_argument(
-    '--hook',
-    action='store_true',
-    help='hook layers for feature extraction')
-parser.add_argument(
-    '--all-ops',
-    '-all',
-    action='store_true',
-    help='Turn on all operations (+brightness,contrast,color,sharpness).')
-# Checkpointing options
-parser.add_argument(
-    '--save',
-    '-s',
-    type=str,
-    default='/ws/data/log',
-    help='Folder to save checkpoints.')
-parser.add_argument(
-    '--resume',
-    '-r',
-    type=str,
-    default='',
-    help='Checkpoint path for resume / test.')
-parser.add_argument('--evaluate', action='store_true', help='Eval only.')
-parser.add_argument('--analysis', action='store_true', help='Analysis only. ')
-parser.add_argument(
-    '--print-freq',
-    type=int,
-    default=50,
-    help='Training loss print frequency (batches).')
-# Acceleration
-parser.add_argument(
-    '--num-workers',
-    type=int,
-    default=4,
-    help='Number of pre-fetching threads.')
-parser.add_argument(
-    '--wandb',
-    '-wb',
-    action='store_true',
-    help='Turn on wandb log')
-parser.add_argument(
-    '--confusion-matrix',
-    '-cm',
-    action='store_true',
-    help='Turn on wandb log')
-
-### PIXMIX
-parser.add_argument(
-    '--beta',
-    default=3,
-    type=int,
-    help='Severity of mixing')
-parser.add_argument(
-    '--k',
-    default=4,
-    type=int,
-    help='Mixing iterations')
-parser.add_argument(
-    '--mixing-set',
-    type=str,
-    default='/ws/data/fractals_and_fvis/',
-    help='Mixing set directory.')
-parser.add_argument(
-    '--use_300k',
-    action='store_true',
-    help='use 300K random images as aug data'
-)
-
-args = parser.parse_args()
-
-CORRUPTIONS = [
-    'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
-    'glass_blur', 'motion_blur', 'zoom_blur', 'snow', 'frost', 'fog',
-    'brightness', 'contrast', 'elastic_transform', 'pixelate',
-    'jpeg_compression'
-]
 
 
 def get_lr(step, total_steps, lr_max, lr_min):
     """Compute learning rate according to cosine annealing schedule."""
     return lr_min + (lr_max - lr_min) * 0.5 * (1 +
                                                np.cos(step / total_steps * np.pi))
+def get_args_from_parser():
+    parser = argparse.ArgumentParser(
+        description='Trains a CIFAR Classifier',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        '--dataset',
+        type=str,
+        default='cifar10',
+        choices=['cifar10', 'cifar100'],
+        help='Choose between CIFAR-10, CIFAR-100.')
+    parser.add_argument(
+        '--aug',
+        '-aug',
+        type=str,
+        default='augmix',
+        choices=['none', 'augmix', 'pixmix', 'apr'],
+        help='Choose domain generalization augmentation methods')
+    parser.add_argument(
+        '--model',
+        '-m',
+        type=str,
+        default='wrn',
+        choices=['wrn', 'allconv', 'densenet', 'resnext'],
+        help='Choose architecture.')
+    # Optimization options
+    parser.add_argument(
+        '--epochs', '-e', type=int, default=100, help='Number of epochs to train.')
+    parser.add_argument(
+        '--learning-rate',
+        '-lr',
+        type=float,
+        default=0.1,
+        help='Initial learning rate.')
+    parser.add_argument(
+        '--batch-size', '-b', type=int, default=128, help='Batch size.')
+    parser.add_argument('--eval-batch-size', type=int, default=1000)
+    parser.add_argument('--momentum', type=float, default=0.9, help='Momentum.')
+    parser.add_argument(
+        '--decay',
+        '-wd',
+        type=float,
+        default=0.0005,
+        help='Weight decay (L2 penalty).')
+    # WRN Architecture options
+    parser.add_argument(
+        '--layers', default=40, type=int, help='total number of layers')
+    parser.add_argument('--widen-factor', default=2, type=int, help='Widen factor')
+    parser.add_argument(
+        '--droprate', default=0.0, type=float, help='Dropout probability')
 
+    # AugMix options
+    parser.add_argument(
+        '--mixture-width',
+        default=3,
+        type=int,
+        help='Number of augmentation chains to mix per augmented example')
+    parser.add_argument(
+        '--mixture-depth',
+        default=-1,
+        type=int,
+        help='Depth of augmentation chains. -1 denotes stochastic depth in [1, 3]')
+    parser.add_argument(
+        '--aug-severity',
+        default=3,
+        type=int,
+        help='Severity of base augmentation operators')
+    parser.add_argument(
+        '--no-jsd',
+        '-nj',
+        action='store_true',
+        help='Turn off JSD consistency loss.')
+    parser.add_argument(
+        '--additional-loss',
+        '-al',
+        default='jsd',
+        type=str,
+        choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss'],
+        help='Type of additional loss')
+    parser.add_argument(
+        '--hook',
+        action='store_true',
+        help='hook layers for feature extraction')
+    parser.add_argument(
+        '--all-ops',
+        '-all',
+        action='store_true',
+        help='Turn on all operations (+brightness,contrast,color,sharpness).')
+    # Checkpointing options
+    parser.add_argument(
+        '--save',
+        '-s',
+        type=str,
+        default='/ws/data/log',
+        help='Folder to save checkpoints.')
+    parser.add_argument(
+        '--resume',
+        '-r',
+        type=str,
+        default='',
+        help='Checkpoint path for resume / test.')
+    parser.add_argument('--evaluate', action='store_true', help='Eval only.')
+    parser.add_argument('--analysis', action='store_true', help='Analysis only. ')
+    parser.add_argument(
+        '--print-freq',
+        type=int,
+        default=50,
+        help='Training loss print frequency (batches).')
+    # Acceleration
+    parser.add_argument(
+        '--num-workers',
+        type=int,
+        default=4,
+        help='Number of pre-fetching threads.')
+    parser.add_argument(
+        '--wandb',
+        '-wb',
+        action='store_true',
+        help='Turn on wandb log')
+    parser.add_argument(
+        '--confusion-matrix',
+        '-cm',
+        action='store_true',
+        help='Turn on wandb log')
 
-def train(net, train_loader, optimizer, scheduler):
-    """Train for one epoch."""
-    net.train()
-    wandb_features = {}
-    total_ce_loss = 0.
-    total_additional_loss = 0.
-    total_correct = 0.
-    loss_ema = 0.
-    for i, (images, targets) in enumerate(train_loader):
-        optimizer.zero_grad()
+    ### PIXMIX
+    parser.add_argument(
+        '--beta',
+        default=3,
+        type=int,
+        help='Severity of mixing')
+    parser.add_argument(
+        '--k',
+        default=4,
+        type=int,
+        help='Mixing iterations')
+    parser.add_argument(
+        '--mixing-set',
+        type=str,
+        default='/ws/data/fractals_and_fvis/',
+        help='Mixing set directory.')
+    parser.add_argument(
+        '--use_300k',
+        action='store_true',
+        help='use 300K random images as aug data'
+    )
 
-        if args.no_jsd or args.aug=='none':
-            # no apply additional loss. augmentations are optional
-            # aug choices = ['none', 'augmix',..]
-            images = images.cuda()
-            targets = targets.cuda()
-            logits = net(images)
-            loss = F.cross_entropy(logits, targets)
-            pred = logits.data.max(1)[1]
-            total_ce_loss += float(loss.data)
-            total_correct += pred.eq(targets.data).sum().item()
+    args = parser.parse_args()
 
-        else:
-            # apply additional loss
-            images_all = torch.cat(images, 0).cuda()
-            targets = targets.cuda()
-            logits_all = net(images_all)
-            logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
-            pred = logits_clean.data.max(1)[1]
+    return args
 
-            # Cross-entropy is only computed on clean images
-            ce_loss = F.cross_entropy(logits_clean, targets)
-            additional_loss = get_additional_loss(args.additional_loss, logits_clean, logits_aug1, logits_aug2,
-                                                  12, targets)
-
-            loss = ce_loss + additional_loss
-            total_ce_loss += float(ce_loss.data)
-            total_additional_loss += float(additional_loss.data)
-            total_correct += pred.eq(targets.data).sum().item()
-
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-        loss_ema = loss_ema * 0.9 + float(loss) * 0.1
-        if i % args.print_freq == 0:
-            print('Train Loss {:.3f}'.format(loss_ema))
-
-    wandb_features['train/ce_loss'] = total_ce_loss / len(train_loader.dataset)
-    wandb_features['train/additional_loss'] = total_additional_loss / len(train_loader.dataset)
-    wandb_features['train/loss'] = (total_ce_loss + total_additional_loss) / len(train_loader.dataset)
-    wandb_features['train/error'] = 100 - 100. * total_correct / len(train_loader.dataset)
-    return loss_ema, wandb_features
-
-
-def train2(net, train_loader, criterion_al, optimizer, optimizer_al, scheduler):
-    """Train for one epoch."""
-    net.train()
-    wandb_features = {}
-    total_ce_loss = 0.
-    total_additional_loss = 0.
-    total_correct = 0.
-    loss_ema = 0.
-    for i, (images, targets) in enumerate(train_loader):
-        optimizer.zero_grad()
-        optimizer_al.zero_grad()
-
-        if args.no_jsd or args.aug == 'none':
-            # no apply additional loss. augmentations are optional
-            # aug choices = ['none', 'augmix',..]
-            images = images.cuda()
-            targets = targets.cuda()
-            logits = net(images)
-            loss = F.cross_entropy(logits, targets)
-            pred = logits.data.max(1)[1]
-            total_ce_loss += float(loss.data)
-            total_correct += pred.eq(targets.data).sum().item()
-
-        else:
-            # apply additional loss
-            images_all = torch.cat(images, 0).cuda()
-            targets = targets.cuda()
-            logits_all = net(images_all)
-            logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
-            pred = logits_clean.data.max(1)[1]
-
-            # Cross-entropy is only computed on clean images
-            ce_loss = F.cross_entropy(logits_clean, targets)
-            additional_loss = criterion_al(net.module.features, targets)
-            # additional_loss = get_additional_loss(args.additional_loss, logits_clean, logits_aug1, logits_aug2,
-            #                                       12, targets)
-
-            loss = ce_loss + additional_loss
-            total_ce_loss += float(ce_loss.data)
-            total_additional_loss += float(additional_loss.data)
-            total_correct += pred.eq(targets.data).sum().item()
-
-        loss.backward()
-        optimizer.step()
-        # by doing so, weight_cent would not impact on the learning of centers\
-        weight_cent = 1
-        for param in criterion_al.parameters():
-            param.grad.data *= (1. / weight_cent)
-        optimizer_al.step()
-        scheduler.step()
-        loss_ema = loss_ema * 0.9 + float(loss) * 0.1
-        if i % args.print_freq == 0:
-            print('Train Loss {:.3f}'.format(loss_ema))
-
-    wandb_features['train/ce_loss'] = total_ce_loss / len(train_loader.dataset)
-    wandb_features['train/additional_loss'] = total_additional_loss / len(train_loader.dataset)
-    wandb_features['train/loss'] = (total_ce_loss + total_additional_loss) / len(train_loader.dataset)
-    wandb_features['train/error'] = 100 - 100. * total_correct / len(train_loader.dataset)
-    return loss_ema, wandb_features
-
-
-
-def test(net, test_loader):
-    """Evaluate network on given dataset."""
-    net.eval()
-    total_loss = 0.
-    total_correct = 0
-    wandb_features = dict()
-    confusion_matrix = torch.zeros(10, 10)
-    tsne_features = []
-    with torch.no_grad():
-        for images, targets in test_loader:
-            images, targets = images.cuda(), targets.cuda()
-            logits = net(images)
-            loss = F.cross_entropy(logits, targets)
-            pred = logits.data.max(1)[1]
-            total_loss += float(loss.data)
-            total_correct += pred.eq(targets.data).sum().item()
-            # plt = plot_tsne(net.module.features, targets)
-            # plt.savefig("/ws/data/log/debug.jpg")
-            # tsne_features.append(net.module.features)
-            for t, p in zip(targets.view(-1), pred.view(-1)):
-                confusion_matrix[t.long(), p.long()] += 1
-    wandb_features['test/loss'] = total_loss / len(test_loader.dataset)
-    wandb_features['test/error'] = 100 - 100. * total_correct / len(test_loader.dataset)
-    return total_loss / len(test_loader.dataset), total_correct / len(test_loader.dataset), wandb_features, confusion_matrix
-
-
-def test_c(net, test_data, base_path):
-    """Evaluate network on given corrupted dataset."""
-    corruption_accs = []
-    wandb_features = dict()
-    wandb_plts = dict()
-    wandb_table = pd.DataFrame(columns=CORRUPTIONS, index=['loss', 'error'])
-    confusion_matrices = []
-    for corruption in CORRUPTIONS:
-        # Reference to original data is mutated
-        test_data.data = np.load(base_path + corruption + '.npy')
-        test_data.targets = torch.LongTensor(np.load(base_path + 'labels.npy'))
-
-        test_loader = torch.utils.data.DataLoader(
-            test_data,
-            batch_size=args.eval_batch_size,
-            shuffle=False,
-            num_workers=args.num_workers,
-            pin_memory=True)
-
-        test_loss, test_acc, _, confusion_matrix = test(net, test_loader)
-        # wandb_features['test_c/{}.loss'.format(corruption)] = test_loss
-        # wandb_features['test_c/{}.error'.format(corruption)] = 100 - 100. * test_acc
-        wandb_table[corruption]['loss'] = test_loss
-        wandb_table[corruption]['error'] = 100 - 100. * test_acc
-        # wandb_plts[corruption] = confusion_matrix
-        corruption_accs.append(test_acc)
-        confusion_matrices.append(confusion_matrix.cpu().detach().numpy())
-        print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
-            corruption, test_loss, 100 - 100. * test_acc))
-
-    # return np.mean(corruption_accs), wandb_features
-    return  np.mean(corruption_accs), wandb_table, np.mean(confusion_matrices, axis=0)
-
-
-def test_c_dg(net, test_data, corr1_data, corr2_data, base_path):
-    """
-    Evaluate additional loss on given combinations of corrupted datasets.
-    Each corrupted dataset are compared with the same level corrupted dataset.
-    """
-    wandb_features = dict()
-    total_additional_loss = 0.
-    from itertools import combinations
-    wandb_table = pd.DataFrame(columns=CORRUPTIONS, index=CORRUPTIONS)
-    for corruption1, corruption2 in combinations(CORRUPTIONS, 2):
-        clean_loss = 0.
-        corr_additional_loss = 0.
-        test_data.data = np.load(base_path + 'clean.npy')
-        corr1_data.data = np.load(base_path + corruption1 + '.npy')
-        corr2_data.data = np.load(base_path + corruption2 + '.npy')
-        test_data.targets = torch.LongTensor(np.load(base_path + 'labels.npy'))
-        corr1_data.targets = torch.LongTensor(np.load(base_path + 'labels.npy'))
-        corr2_data.targets = torch.LongTensor(np.load(base_path + 'labels.npy'))
-        concat_data = ConcatDataset((test_data, corr1_data, corr2_data))
-
-        test_loader = torch.utils.data.DataLoader(
-            concat_data,
-            batch_size=args.eval_batch_size,
-            shuffle=False,
-            num_workers=args.num_workers,
-            pin_memory=True)
-        # test_loss, test_acc, _ = test(net, test_loader)
-        with torch.no_grad():
-            for clean, corr1, corr2 in test_loader:
-                images = torch.cat([clean[0], corr1[0], corr2[0]], dim=0)
-                targets = torch.cat([clean[1], corr1[1], corr2[1]], dim=0)
-                images, targets = images.cuda(), targets.cuda()
-                logits = net(images)
-                logits_clean, logits_aug1, logits_aug2 = torch.chunk(logits, 3)
-                target_clean, target_aug1, target_aug2 = torch.chunk(targets, 3)
-                loss = F.cross_entropy(logits_clean, target_clean)
-                additional_loss = get_additional_loss(args.additional_loss, logits_clean, logits_aug1, logits_aug2)
-                clean_loss += float(loss.data)
-                corr_additional_loss += float(additional_loss.data)
-            # wandb_features['test_c/loss_clean'] = clean_loss / len(test_loader)
-            # wandb_features['test_c/additional_loss_{}_{}'.format(corruption1, corruption2)] = \
-            #     corr_additional_loss / len(test_loader)
-            wandb_table[corruption1][corruption2] = corr_additional_loss / len(test_loader)
-            print('test_c/loss_clean: ', clean_loss / len(test_loader))
-            print('test_c/additional_loss_{}_{}'.format(corruption1, corruption2), corr_additional_loss / len(test_loader))
-
-        total_additional_loss += corr_additional_loss
-    combinations_length = sum(1 for _ in combinations(CORRUPTIONS, 2))
-    # wandb_features['test_c/additional_loss_total'.format(total_additional_loss)] = \
-    #     total_additional_loss / combinations_length
-    print('test_c/additional_loss_total'.format(total_additional_loss), total_additional_loss / combinations_length)
-
-    # wandb_table = wandb.Table(data=df)
-
-    return total_additional_loss / combinations_length, wandb_features, wandb_table
-
+args = get_args_from_parser()
 
 def main():
     torch.manual_seed(1)
     np.random.seed(1)
+
+    ''' Initialize wandb '''
     if args.evaluate:
         resume_path = (args.resume).split('/')
         resume_model = resume_path[-2]
@@ -462,7 +225,7 @@ def main():
     if args.wandb:
         wandb.init(project='AI28', entity='kaist-url-ai28', name=name)
 
-    # Load datasets
+    ''' Load datasets '''
     train_transform = transforms.Compose(
         [transforms.RandomHorizontalFlip(),
          transforms.RandomCrop(32, padding=4)])
@@ -524,7 +287,7 @@ def main():
         num_workers=args.num_workers,
         pin_memory=True)
 
-    # Create model
+    ''' Create model '''
     if args.model == 'densenet':
         net = densenet(num_classes=num_classes)
     elif args.model == 'wrn':
@@ -533,13 +296,15 @@ def main():
         net = AllConvNet(num_classes)
     elif args.model == 'resnext':
         net = resnext29(num_classes=num_classes)
+    else: # default == 'wrn'
+        net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
 
-    # Create additional loss model
+    ''' Create additional loss model '''
     if args.additional_loss == 'center_loss':
         criterion_al = CenterLoss(num_classes=num_classes, feat_dim=2, use_gpu=True)
         optimizer_al = torch.optim.SGD(criterion_al.parameters(), lr=0.5)
 
-    # Hook Layers
+    ''' Hook Layers '''
     if args.hook:
         hook = FeatureHook(["block3.layer.5.conv2"])
         hook.hook_multi_layer(net)
@@ -568,11 +333,11 @@ def main():
 
     if args.evaluate:
         # Evaluate clean accuracy first because test_c mutates underlying data
-        test_loss, test_acc, test_features, test_cm = test(net, test_loader)
+        test_loss, test_acc, test_features, test_cm = test(net, test_loader, args)
         print('Clean\n\tTest Loss {:.3f} | Test Error {:.2f}'.format(
             test_loss, 100 - 100. * test_acc))
 
-        test_c_acc, test_c_table, test_c_cm = test_c(net, test_data, base_c_path)
+        test_c_acc, test_c_table, test_c_cm = test_c(net, test_data, args, base_c_path)
         print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 
         # log wandb features
@@ -599,7 +364,7 @@ def main():
         corr2_data = datasets.CIFAR10(
             '/ws/data/cifar', train=False, transform=test_transform, download=True)
         # test_c_dg
-        test_dg_loss, test_dg_features, test_dg_table = test_c_dg(net, test_data, corr1_data, corr2_data, base_c_path)
+        test_dg_loss, test_dg_features, test_dg_table = test_c_dg(net, test_data, args, corr1_data, corr2_data, base_c_path)
         test_dg_table = wandb.Table(data=test_dg_table)
         wandb.log({"additional_loss": test_dg_table})
         for key, value in test_dg_features.items():
@@ -630,10 +395,10 @@ def main():
     for epoch in range(start_epoch, args.epochs):
         begin_time = time.time()
         if args.additional_loss in ['center_loss']:
-            train_loss_ema, train_features = train2(net, train_loader, criterion_al, optimizer, optimizer_al, scheduler)
+            train_loss_ema, train_features = train2(net, train_loader, args, criterion_al, optimizer, optimizer_al, scheduler)
         else:
-            train_loss_ema, train_features = train(net, train_loader, optimizer, scheduler)
-        test_loss, test_acc, test_features, test_cm = test(net, test_loader)
+            train_loss_ema, train_features = train(net, train_loader, args, optimizer, scheduler)
+        test_loss, test_acc, test_features, test_cm = test(net, test_loader, args)
 
         # log wandb features
         if args.wandb:
@@ -675,7 +440,7 @@ def main():
             .format((epoch + 1), int(time.time() - begin_time), train_loss_ema,
                     test_loss, 100 - 100. * test_acc))
 
-    test_c_acc, test_c_table, test_c_cm = test_c(net, test_data, base_c_path)
+    test_c_acc, test_c_table, test_c_cm = test_c(net, test_data, args, base_c_path)
     if args.wandb:
         test_c_table = wandb.Table(data=test_c_table)
         wandb.log({"test_c_results": test_c_table})
@@ -683,9 +448,10 @@ def main():
         #     wandb.log({key: value})
 
     print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
-    wandb.log({"test/corruption_error: ": 100 - 100. * test_c_acc})
-    test_c_plt = plot_confusion_matrix(test_c_cm)
-    wandb.log({'clean': test_c_plt})
+    if args.wandb:
+        wandb.log({"test/corruption_error: ": 100 - 100. * test_c_acc})
+        test_c_plt = plot_confusion_matrix(test_c_cm)
+        wandb.log({'clean': test_c_plt})
 
     with open(log_path, 'a') as f:
         f.write('%03d,%05d,%0.6f,%0.5f,%0.2f\n' %

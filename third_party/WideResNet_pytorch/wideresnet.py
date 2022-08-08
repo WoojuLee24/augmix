@@ -129,9 +129,16 @@ class WideResNet(nn.Module):
 
     return out
 
-  def forward(self, x):
+  def forward(self, x, targets=None):
     self.features = self.extract_features(x)
     logits = self.fc(self.features)
     # self.features = self.fc1(self.extract_features(x))
     # logits = self.fc2(self.features)
+
+    if targets is not None:
+        # num_classes = 100 if dataset == 'cifar100' else 10
+        from utils.visualize import plot_tsne
+        targets_all = torch.cat((targets, targets, targets), 0)
+        plot_tsne(self.features, targets_all)
+
     return logits
