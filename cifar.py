@@ -41,7 +41,7 @@ from torchvision import datasets
 from torchvision import transforms
 
 from losses import get_additional_loss
-from datasets.mixdataset import BaseDataset, AugMixDataset
+from datasets import *
 import wandb
 
 parser = argparse.ArgumentParser(
@@ -92,6 +92,7 @@ parser.add_argument(
 parser.add_argument('--widen-factor', default=2, type=int, help='Widen factor')
 parser.add_argument(
     '--droprate', default=0.0, type=float, help='Dropout probability')
+
 # AugMix options
 parser.add_argument(
     '--mixture-width',
@@ -155,6 +156,28 @@ parser.add_argument(
     '-wb',
     action='store_true',
     help='Turn on wandb log')
+
+### PIXMIX
+parser.add_argument(
+    '--beta',
+    default=3,
+    type=int,
+    help='Severity of mixing')
+parser.add_argument(
+    '--k',
+    default=4,
+    type=int,
+    help='Mixing iterations')
+parser.add_argument(
+    '--mixing-set',
+    type=str,
+    default='/ws/data/fractals_and_fvis/',
+    help='Mixing set directory.')
+parser.add_argument(
+    '--use_300k',
+    action='store_true',
+    help='use 300K random images as aug data'
+)
 
 args = parser.parse_args()
 
@@ -305,8 +328,19 @@ def main():
         train_data = AugMixDataset(train_data, preprocess, args.no_jsd,
                                    args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity)
     elif args.aug == 'pixmix':
-        pass
-        # train_data = PixMixDataset(train_data, preprocess, args.no_jsd)
+        if args.use_300k:
+            mixing_set = RandomImages300K(file='300K_random_images.npy', transform=transforms.Compose(
+                [transforms.ToTensor(), transforms.ToPILImage(), transforms.RandomCrop(32, padding=4),
+                 transforms.RandomHorizontalFlip()]))
+        else:
+            mixing_set_transform = transforms.Compose(
+                [transforms.Resize(36),
+                 transforms.RandomCrop(32)])
+            mixing_set = datasets.ImageFolder(args.mixing_set, transform=mixing_set_transform)
+        to_tensor = transforms.ToTensor()
+        normalize = transforms.Normalize([0.5] * 3, [0.5] * 3)
+        train_data = PixMixDataset(train_data, mixing_set, {'normalize': normalize, 'tensorize': to_tensor},
+                                   no_jsd=args.no_jsd, k=args.k, beta=args.beta, all_ops=args.all_ops, aug_severity=args.aug_severity)
     elif args.aug == 'arp':
         pass
         # train_data = PixMixDataset(train_data, preprocess, args.no_jsd)
@@ -394,10 +428,11 @@ def main():
         test_loss, test_acc, test_features = test(net, test_loader)
 
         # log wandb features
-        for key, value in train_features.items():
-            wandb.log({key: value})
-        for key, value in test_features.items():
-            wandb.log({key: value})
+        if args.wandb:
+            for key, value in train_features.items():
+                wandb.log({key: value})
+            for key, value in test_features.items():
+                wandb.log({key: value})
 
         is_best = test_acc > best_acc
         best_acc = max(test_acc, best_acc)
@@ -431,8 +466,9 @@ def main():
                     test_loss, 100 - 100. * test_acc))
 
     test_c_acc, test_c_features = test_c(net, test_data, base_c_path)
-    for key, value in test_c_features.items():
-        wandb.log({key: value})
+    if args.wandb:
+        for key, value in test_c_features.items():
+            wandb.log({key: value})
     print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 
     with open(log_path, 'a') as f:
