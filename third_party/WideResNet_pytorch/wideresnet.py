@@ -83,6 +83,7 @@ class WideResNet(nn.Module):
 
   def __init__(self, depth, num_classes, widen_factor=1, drop_rate=0.0):
     super(WideResNet, self).__init__()
+    self.hook_features = dict()
     n_channels = [16, 16 * widen_factor, 32 * widen_factor, 64 * widen_factor]
     assert (depth - 4) % 6 == 0
     n = (depth - 4) // 6
@@ -103,6 +104,8 @@ class WideResNet(nn.Module):
     self.bn1 = nn.BatchNorm2d(n_channels[3])
     self.relu = nn.ReLU(inplace=True)
     self.fc = nn.Linear(n_channels[3], num_classes)
+    # self.fc1 = nn.Linear(n_channels[3], 2)
+    # self.fc2 = nn.Linear(2, num_classes)
     self.n_channels = n_channels[3]
 
     for m in self.modules():
@@ -115,7 +118,7 @@ class WideResNet(nn.Module):
       elif isinstance(m, nn.Linear):
         m.bias.data.zero_()
 
-  def forward(self, x):
+  def extract_features(self, x):
     out = self.conv1(x)
     out = self.block1(out)
     out = self.block2(out)
@@ -123,4 +126,12 @@ class WideResNet(nn.Module):
     out = self.relu(self.bn1(out))
     out = F.avg_pool2d(out, 8)
     out = out.view(-1, self.n_channels)
-    return self.fc(out)
+
+    return out
+
+  def forward(self, x):
+    self.features = self.extract_features(x)
+    logits = self.fc(self.features)
+    # self.features = self.fc1(self.extract_features(x))
+    # logits = self.fc2(self.features)
+    return logits
