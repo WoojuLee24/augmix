@@ -27,7 +27,6 @@ import os
 import shutil
 import time
 
-import augmentations
 from models.cifar.allconv import AllConvNet
 import numpy as np
 from third_party.ResNeXt_DenseNet.models.densenet import densenet
@@ -36,19 +35,17 @@ from third_party.WideResNet_pytorch.wideresnet import WideResNet
 
 import torch
 import torch.backends.cudnn as cudnn
-import torch.nn.functional as F
 from torchvision import datasets
 from torchvision import transforms
 
 from datasets import *
-from losses import get_additional_loss, CenterLoss
+from losses import CenterLoss
 from datasets.mixdataset import BaseDataset, AugMixDataset
 from feature_hook import FeatureHook
-from utils import plot_tsne, plot_confusion_matrix
-from models.cifar.apis import train, train2, test, test_c, test_c_dg
+from utils import plot_confusion_matrix
+from apis import train, train2, test, test_c, test_c_dg
 
 import wandb
-import random
 
 
 def get_lr(step, total_steps, lr_max, lr_min):
