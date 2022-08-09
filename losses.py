@@ -3,14 +3,14 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 
-def get_additional_loss(name, logits_clean, logits_aug1, logits_aug2, lambda_weight=12, targets=None, **kwargs):
+def get_additional_loss(name, logits_clean, logits_aug1, logits_aug2, lambda_weight=12, targets=None, temper=1, **kwargs):
 
     if name == 'none':
         loss = 0
     elif name == 'jsd':
         loss = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsd_temper':
-        loss = jsd_temper(logits_clean, logits_aug1, logits_aug2, lambda_weight)
+        loss = jsd_temper(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'kl':
         loss = kl(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'ntxent':

@@ -119,6 +119,12 @@ def get_args_from_parser():
         type=int,
         help='Severity of base augmentation operators')
     parser.add_argument(
+        '--mixture-coefficient',
+        '-mc',
+        default=1,
+        type=float,
+        help='mixture coefficient')
+    parser.add_argument(
         '--no-jsd',
         '-nj',
         action='store_true',
@@ -130,6 +136,11 @@ def get_args_from_parser():
         type=str,
         choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss'],
         help='Type of additional loss')
+    parser.add_argument(
+        '--temper',
+        default=1,
+        type=float,
+        help='Temperature scaling')
     parser.add_argument(
         '--hook',
         action='store_true',
@@ -251,7 +262,7 @@ def main():
         train_data = BaseDataset(train_data, preprocess, args.no_jsd)
     elif args.aug == 'augmix':
         train_data = AugMixDataset(train_data, preprocess, args.no_jsd,
-                                   args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity)
+                                   args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity, args.mixture_coefficient)
     elif args.aug == 'pixmix':
         if args.use_300k:
             mixing_set = RandomImages300K(file='300K_random_images.npy', transform=transforms.Compose(

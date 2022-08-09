@@ -3,7 +3,7 @@ import numpy as np
 import augmentations
 
 
-def aug(image, preprocess, all_ops, mixture_width, mixture_depth, aug_severity):
+def aug(image, preprocess, all_ops, mixture_width, mixture_depth, aug_severity, mixture_coefficient=1):
     """Perform AugMix augmentations and ctrain_data, preprocess, args.no_jsdompute mixture.
 
     Args:
@@ -18,7 +18,7 @@ def aug(image, preprocess, all_ops, mixture_width, mixture_depth, aug_severity):
         aug_list = augmentations.augmentations_all
 
     ws = np.float32(np.random.dirichlet([1] * mixture_width))
-    m = np.float32(np.random.beta(1, 1))
+    m = np.float32(np.random.beta(mixture_coefficient, mixture_coefficient))
 
     mix = torch.zeros_like(preprocess(image))
     for i in range(mixture_width):
@@ -59,7 +59,8 @@ class AugMixDataset(torch.utils.data.Dataset):
                  all_ops=False,
                  mixture_width=3,
                  mixture_depth=-1,
-                 aug_severity=3):
+                 aug_severity=3,
+                 mixture_coefficient=1):
         self.dataset = dataset
         self.preprocess = preprocess
         self.no_jsd = no_jsd
@@ -67,6 +68,7 @@ class AugMixDataset(torch.utils.data.Dataset):
         self.mixture_width = mixture_width
         self.mixture_depth = mixture_depth
         self.aug_severity = aug_severity
+        self.mixture_coefficient = mixture_coefficient
 
     def __getitem__(self, i):
         x, y = self.dataset[i]
@@ -74,8 +76,8 @@ class AugMixDataset(torch.utils.data.Dataset):
             return aug(x, self.preprocess), y
         else:
             original = self.preprocess(x)
-            aug1 = aug(x, self.preprocess, self.all_ops, self.mixture_width, self.mixture_depth, self.aug_severity)
-            aug2 = aug(x, self.preprocess, self.all_ops, self.mixture_width, self.mixture_depth, self.aug_severity)
+            aug1 = aug(x, self.preprocess, self.all_ops, self.mixture_width, self.mixture_depth, self.aug_severity, self.mixture_coefficient)
+            aug2 = aug(x, self.preprocess, self.all_ops, self.mixture_width, self.mixture_depth, self.aug_severity, self.mixture_coefficient)
             im_tuple = (original, aug1, aug2)
             # im_tuple = (self.preprocess(x), aug(x, self.preprocess),
             #             aug(x, self.preprocess))

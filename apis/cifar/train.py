@@ -30,14 +30,14 @@ def train(net, train_loader, args, optimizer, scheduler):
             # apply additional loss
             images_all = torch.cat(images, 0).cuda()
             targets = targets.cuda()
-            logits_all = net(images_all, targets)
+            logits_all = net(images_all)
             logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
             pred = logits_clean.data.max(1)[1]
 
             # Cross-entropy is only computed on clean images
             ce_loss = F.cross_entropy(logits_clean, targets)
             additional_loss = get_additional_loss(args.additional_loss, logits_clean, logits_aug1, logits_aug2,
-                                                  12, targets)
+                                                  12, targets, args.temper)
 
             loss = ce_loss + additional_loss
             total_ce_loss += float(ce_loss.data)
