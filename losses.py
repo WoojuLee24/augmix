@@ -134,3 +134,26 @@ class CenterLoss(nn.Module):
         return loss
 
 
+class MlpJSDLoss(nn.Module):
+    """Mlp JSD loss.
+
+    Args:
+        num_classes (int): number of classes.
+        feat_dim (int): feature dimension.
+    """
+
+    def __init__(self, in_feature, out_feature):
+        super(MlpJSDLoss, self).__init__()
+        self.fc = nn.Linear(in_feature, out_feature)
+
+    def forward(self, args, logits_all=None, features=None, targets=None, split=3, lambda_weight=12):
+        if args.jsd_layer == 'logits':
+            embedded = self.fc(logits_all)
+        elif args.jsd_layer == 'features':
+            embedded = self.fc(features)
+        logits_clean, logits_aug1, logits_aug2 = torch.chunk(embedded, split)
+
+        loss = jsd_temper(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
+
+        return loss
+

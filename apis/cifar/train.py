@@ -114,7 +114,7 @@ class Trainer():
 
                 # Cross-entropy is only computed on clean images
                 ce_loss = F.cross_entropy(logits_clean, targets)
-                additional_loss = criterion_al(self.net.module.features, targets)
+                additional_loss = criterion_al(args, logits_all, self.net.module.features, targets)
                 # additional_loss = get_additional_loss(args.additional_loss, logits_clean, logits_aug1, logits_aug2,
                 #                                       12, targets)
 

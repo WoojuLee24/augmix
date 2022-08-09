@@ -39,7 +39,7 @@ from torchvision import datasets
 from torchvision import transforms
 
 from datasets import *
-from losses import CenterLoss
+from losses import CenterLoss, MlpJSDLoss
 from datasets.mixdataset import BaseDataset, AugMixDataset
 from feature_hook import FeatureHook
 from utils import WandbLogger
@@ -117,6 +117,12 @@ def get_args_from_parser():
         type=int,
         help='Severity of base augmentation operators')
     parser.add_argument(
+        '--mixture-coefficient',
+        '-mc',
+        default=1.0,
+        type=float,
+        help='mixture coefficient alpha')
+    parser.add_argument(
         '--no-jsd',
         '-nj',
         action='store_true',
@@ -126,8 +132,19 @@ def get_args_from_parser():
         '-al',
         default='jsd',
         type=str,
-        choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss'],
+        choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss', 'mlpjsd'],
         help='Type of additional loss')
+    parser.add_argument(
+        '--temper',
+        default=1.0,
+        type=float,
+        help='temperature scaling')
+    parser.add_argument(
+        '--jsd-layer',
+        default='features',
+        type=str,
+        choices=['features', 'logits'],
+        help='apply jsd loss for the selected layer')
     parser.add_argument(
         '--hook',
         action='store_true',
@@ -253,7 +270,7 @@ def main():
         train_data = BaseDataset(train_data, preprocess, args.no_jsd)
     elif args.aug == 'augmix':
         train_data = AugMixDataset(train_data, preprocess, args.no_jsd,
-                                   args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity)
+                                   args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity, args.mixture_coefficient)
     elif args.aug == 'pixmix':
         if args.use_300k:
             mixing_set = RandomImages300K(file='300K_random_images.npy', transform=transforms.Compose(
@@ -302,6 +319,17 @@ def main():
     if args.additional_loss == 'center_loss':
         criterion_al = CenterLoss(num_classes=num_classes, feat_dim=2, use_gpu=True)
         optimizer_al = torch.optim.SGD(criterion_al.parameters(), lr=0.5)
+    elif args.additional_loss == 'mlpjsd':
+        criterion_al = MlpJSDLoss(in_feature=128, out_feature=128)
+        criterion_al = criterion_al.cuda()
+        optimizer_al = torch.optim.SGD(criterion_al.parameters(), lr=0.5)
+        scheduler_al = torch.optim.lr_scheduler.LambdaLR(
+            optimizer_al,
+            lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
+                step,
+                args.epochs * len(train_loader),
+                1,  # lr_lambda computes multiplicative factor
+                1e-6 / args.learning_rate))
 
     ''' Hook Layers '''
     if args.hook:
@@ -388,7 +416,7 @@ def main():
     for epoch in range(start_epoch, args.epochs):
         wandb_logger.before_train_epoch() # wandb here
         begin_time = time.time()
-        if args.additional_loss in ['center_loss']:
+        if args.additional_loss in ['center_loss', 'mlpjsd']:
             train_loss_ema, train_features = trainer.train2(train_loader, args, criterion_al, optimizer, optimizer_al, scheduler)
         else:
             train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
