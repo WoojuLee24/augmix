@@ -79,66 +79,83 @@ class NetworkBlock(nn.Module):
 
 
 class WideResNet(nn.Module):
-  """WideResNet class."""
+    """WideResNet class."""
 
-  def __init__(self, depth, num_classes, widen_factor=1, drop_rate=0.0):
-    super(WideResNet, self).__init__()
-    self.hook_features = dict()
-    n_channels = [16, 16 * widen_factor, 32 * widen_factor, 64 * widen_factor]
-    assert (depth - 4) % 6 == 0
-    n = (depth - 4) // 6
-    block = BasicBlock
-    # 1st conv before any network block
-    self.conv1 = nn.Conv2d(
-        3, n_channels[0], kernel_size=3, stride=1, padding=1, bias=False)
-    # 1st block
-    self.block1 = NetworkBlock(n, n_channels[0], n_channels[1], block, 1,
-                               drop_rate)
-    # 2nd block
-    self.block2 = NetworkBlock(n, n_channels[1], n_channels[2], block, 2,
-                               drop_rate)
-    # 3rd block
-    self.block3 = NetworkBlock(n, n_channels[2], n_channels[3], block, 2,
-                               drop_rate)
-    # global average pooling and classifier
-    self.bn1 = nn.BatchNorm2d(n_channels[3])
-    self.relu = nn.ReLU(inplace=True)
-    self.fc = nn.Linear(n_channels[3], num_classes)
-    # self.fc1 = nn.Linear(n_channels[3], 2)
-    # self.fc2 = nn.Linear(2, num_classes)
-    self.n_channels = n_channels[3]
+    def __init__(self, depth, num_classes, widen_factor=1, drop_rate=0.0):
+        super(WideResNet, self).__init__()
+        self.hook_features = dict()
+        n_channels = [16, 16 * widen_factor, 32 * widen_factor, 64 * widen_factor]
+        assert (depth - 4) % 6 == 0
+        n = (depth - 4) // 6
+        block = BasicBlock
+        # 1st conv before any network block
+        self.conv1 = nn.Conv2d(
+            3, n_channels[0], kernel_size=3, stride=1, padding=1, bias=False)
+        # 1st block
+        self.block1 = NetworkBlock(n, n_channels[0], n_channels[1], block, 1,
+                                   drop_rate)
+        # 2nd block
+        self.block2 = NetworkBlock(n, n_channels[1], n_channels[2], block, 2,
+                                   drop_rate)
+        # 3rd block
+        self.block3 = NetworkBlock(n, n_channels[2], n_channels[3], block, 2,
+                                   drop_rate)
+        # global average pooling and classifier
+        self.bn1 = nn.BatchNorm2d(n_channels[3])
+        self.relu = nn.ReLU(inplace=True)
+        self.fc = nn.Linear(n_channels[3], num_classes)
+        # self.fc1 = nn.Linear(n_channels[3], 2)
+        # self.fc2 = nn.Linear(2, num_classes)
+        self.n_channels = n_channels[3]
 
-    for m in self.modules():
-      if isinstance(m, nn.Conv2d):
-        n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-        m.weight.data.normal_(0, math.sqrt(2. / n))
-      elif isinstance(m, nn.BatchNorm2d):
-        m.weight.data.fill_(1)
-        m.bias.data.zero_()
-      elif isinstance(m, nn.Linear):
-        m.bias.data.zero_()
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                m.bias.data.zero_()
+        self.wandb_input = dict()
 
-  def extract_features(self, x):
-    out = self.conv1(x)
-    out = self.block1(out)
-    out = self.block2(out)
-    out = self.block3(out)
-    out = self.relu(self.bn1(out))
-    out = F.avg_pool2d(out, 8)
-    out = out.view(-1, self.n_channels)
+    def extract_features(self, x):
+        out = self.conv1(x)
+        out = self.block1(out)
+        out = self.block2(out)
+        out = self.block3(out)
+        out = self.relu(self.bn1(out))
+        out = F.avg_pool2d(out, 8)
+        out = out.view(-1, self.n_channels)
 
-    return out
+        return out
 
-  def forward(self, x, targets=None):
-    self.features = self.extract_features(x)
-    logits = self.fc(self.features)
-    # self.features = self.fc1(self.extract_features(x))
-    # logits = self.fc2(self.features)
+    def forward(self, x, targets=None):
+        self.features = self.extract_features(x)
+        logits = self.fc(self.features)
+        # self.features = self.fc1(self.extract_features(x))
+        # logits = self.fc2(self.features)
 
-    if targets is not None:
-        # num_classes = 100 if dataset == 'cifar100' else 10
-        from utils.visualize import plot_tsne
-        targets_all = torch.cat((targets, targets, targets), 0)
-        plot_tsne(self.features, targets_all)
+        if targets is not None:
+            from utils.visualize import plot_tsne, multi_plot_tsne
+            targets_all = torch.cat((targets, targets, targets), 0)
 
-    return logits
+            # plt, fig = plot_tsne(self.features, targets=targets_all, title='features')
+            # self.wandb_input['tsne_features'] = fig
+            # plt.close(fig)
+            #
+            # plt, fig = plot_tsne(logits, targets=targets_all, title='logits')
+            # self.wandb_input['tsne_logits'] = fig
+            # plt.close(fig)
+
+            input_list = [self.features, logits]
+            targets_list = [targets_all, targets_all]
+            title_list = ['features', 'logits']
+            plt, fig = multi_plot_tsne(input_list, targets_list, title_list, rows=1, cols=2,
+                                       # perplexity=50, n_iter=300)
+                                       perplexity=30, n_iter=300)
+            self.wandb_input['tsne'] = fig
+            plt.close(fig)
+
+        return logits
+

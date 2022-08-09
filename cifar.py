@@ -42,10 +42,8 @@ from datasets import *
 from losses import CenterLoss
 from datasets.mixdataset import BaseDataset, AugMixDataset
 from feature_hook import FeatureHook
-from utils import plot_confusion_matrix
-from apis import train, train2, test, test_c, test_c_dg
-
-import wandb
+from utils import WandbLogger
+from apis import test, test_c, test_c_dg, Trainer
 
 
 def get_lr(step, total_steps, lr_max, lr_min):
@@ -119,12 +117,6 @@ def get_args_from_parser():
         type=int,
         help='Severity of base augmentation operators')
     parser.add_argument(
-        '--mixture-coefficient',
-        '-mc',
-        default=1,
-        type=float,
-        help='mixture coefficient')
-    parser.add_argument(
         '--no-jsd',
         '-nj',
         action='store_true',
@@ -136,11 +128,6 @@ def get_args_from_parser():
         type=str,
         choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss'],
         help='Type of additional loss')
-    parser.add_argument(
-        '--temper',
-        default=1,
-        type=float,
-        help='Temperature scaling')
     parser.add_argument(
         '--hook',
         action='store_true',
@@ -231,7 +218,11 @@ def main():
     else:
         name = f"{args.aug}_{args.additional_loss}_b{args.batch_size}"
     if args.wandb:
-        wandb.init(project='AI28', entity='kaist-url-ai28', name=name)
+        wandg_config = dict(project='AI28', entity='kaist-url-ai28', name=name)
+        wandb_logger = WandbLogger(wandg_config, args)
+    else:
+        wandb_logger = WandbLogger(None)
+    wandb_logger.before_run() # wandb here
 
     ''' Load datasets '''
     train_transform = transforms.Compose(
@@ -262,7 +253,7 @@ def main():
         train_data = BaseDataset(train_data, preprocess, args.no_jsd)
     elif args.aug == 'augmix':
         train_data = AugMixDataset(train_data, preprocess, args.no_jsd,
-                                   args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity, args.mixture_coefficient)
+                                   args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity)
     elif args.aug == 'pixmix':
         if args.use_300k:
             mixing_set = RandomImages300K(file='300K_random_images.npy', transform=transforms.Compose(
@@ -325,7 +316,9 @@ def main():
         nesterov=True)
 
     # Distribute model across all visible GPUs
-    net = torch.nn.DataParallel(net).cuda()
+    from models import MyDataParallel
+    # net = torch.nn.DataParallel(net).cuda()
+    net = MyDataParallel(net).cuda()
     cudnn.benchmark = True
 
     start_epoch = 0
@@ -348,21 +341,12 @@ def main():
         test_c_acc, test_c_table, test_c_cm = test_c(net, test_data, args, base_c_path)
         print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 
-        # log wandb features
-        for key, value in test_features.items():
-            wandb.log({key: value})
-        test_plt = plot_confusion_matrix(test_cm)
-        wandb.log({'clean': test_plt})
-        test_c_table = wandb.Table(data=test_c_table)
-        wandb.log({"test_c_results": test_c_table})
-        wandb.log({"test/corruption_error: ": 100 - 100. * test_c_acc})
-        test_c_plt = plot_confusion_matrix(test_c_cm)
-        wandb.log({'corruption': test_c_plt})
-        # for key, value in test_c_features.items():
-        #     wandb.log({key: value})
-        # test_c_plt = plot_confusion_matrix(test_c_cm)
-        # for key, value in test_c_plt.items():
-        #     wandb.log({key: value})
+        # wandb here
+        wandb_logger.log_evaluate(dict(test_features=test_features,
+                                       test_cm=test_cm,
+                                       test_c_table=test_c_table,
+                                       test_c_acc=test_c_acc,
+                                       test_c_cm=test_c_cm))
 
         return
 
@@ -373,10 +357,10 @@ def main():
             '/ws/data/cifar', train=False, transform=test_transform, download=True)
         # test_c_dg
         test_dg_loss, test_dg_features, test_dg_table = test_c_dg(net, test_data, args, corr1_data, corr2_data, base_c_path)
-        test_dg_table = wandb.Table(data=test_dg_table)
-        wandb.log({"additional_loss": test_dg_table})
-        for key, value in test_dg_features.items():
-            wandb.log({key: value})
+
+        # wandb here
+        wandb_logger.log_analysis(dict(test_dg_table=test_dg_table,
+                                       test_dg_features=test_dg_features))
 
         return
 
@@ -398,24 +382,21 @@ def main():
     with open(log_path, 'w') as f:
         f.write('epoch,time(s),train_loss,test_loss,test_error(%)\n')
 
+    trainer = Trainer(net, wandb_logger=wandb_logger)
     best_acc = 0
     print('Beginning training from epoch:', start_epoch + 1)
     for epoch in range(start_epoch, args.epochs):
+        wandb_logger.before_train_epoch() # wandb here
         begin_time = time.time()
         if args.additional_loss in ['center_loss']:
-            train_loss_ema, train_features = train2(net, train_loader, args, criterion_al, optimizer, optimizer_al, scheduler)
+            train_loss_ema, train_features = trainer.train2(train_loader, args, criterion_al, optimizer, optimizer_al, scheduler)
         else:
-            train_loss_ema, train_features = train(net, train_loader, args, optimizer, scheduler)
-        test_loss, test_acc, test_features, test_cm = test(net, test_loader, args)
+            train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
+        wandb_logger.after_train_epoch(dict(train_features=train_features)) # wandb here
 
-        # log wandb features
-        if args.wandb:
-            for key, value in train_features.items():
-                wandb.log({key: value})
-            for key, value in test_features.items():
-                wandb.log({key: value})
-            test_plt = plot_confusion_matrix(test_cm)
-            wandb.log({'clean': test_plt})
+        test_loss, test_acc, test_features, test_cm = test(net, test_loader, args)
+        wandb_logger.after_test_epoch(dict(test_features=test_features, # wandb here
+                                            test_cm=test_cm))
 
         is_best = test_acc > best_acc
         best_acc = max(test_acc, best_acc)
@@ -449,17 +430,11 @@ def main():
                     test_loss, 100 - 100. * test_acc))
 
     test_c_acc, test_c_table, test_c_cm = test_c(net, test_data, args, base_c_path)
-    if args.wandb:
-        test_c_table = wandb.Table(data=test_c_table)
-        wandb.log({"test_c_results": test_c_table})
-        # for key, value in test_c_features.items():
-        #     wandb.log({key: value})
+    wandb_logger.after_run(dict(test_c_table=test_c_table, # wandb here
+                                test_c_acc=test_c_acc,
+                                test_c_cm=test_c_cm))
 
     print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
-    if args.wandb:
-        wandb.log({"test/corruption_error: ": 100 - 100. * test_c_acc})
-        test_c_plt = plot_confusion_matrix(test_c_cm)
-        wandb.log({'clean': test_c_plt})
 
     with open(log_path, 'a') as f:
         f.write('%03d,%05d,%0.6f,%0.5f,%0.2f\n' %

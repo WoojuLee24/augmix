@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import pandas as pd
 from sklearn.manifold import TSNE
+from sklearn import decomposition
 import seaborn as sns
 
 
@@ -51,7 +52,7 @@ def plot_confusion_matrix(cm,
     # plt.savefig('/ws/external/visualization_results/confusion_matrix.png')
 
 
-def plot_tsne(test_features, targets=None):
+def plot_tsne(test_features, targets=None, title=None, save=None):
     test_features = test_features.cpu().detach().numpy().data
     y = targets.cpu().detach().numpy().data
 
@@ -61,11 +62,53 @@ def plot_tsne(test_features, targets=None):
     fig = plt.figure(figsize=(12, 12))
     plt.scatter(tsne_ref[:, 0], tsne_ref[:, 1], marker='.',
                 cmap=cm.Paired, c=y)
-    plt.title('t-SNE result', weight='bold').set_fontsize('14')
+    if title is not None:
+        plt.title(f't-SNE ({title})', weight='bold').set_fontsize('14')
     plt.xlabel('x', weight='bold').set_fontsize('10')
     plt.ylabel('y', weight='bold').set_fontsize('10')
     plt.axis('equal')
-    plt.savefig("/ws/data/ai28/hello.png")
-    # wandb.log({f"t-sne": self.wandb.Image(fig)})
-    plt.close(fig)
+    if save is not None:
+        plt.savefig(save)
 
+    return plt, fig
+
+
+def single_plot_tsne(test_features, targets=None, title=None,
+                     n_components=2, perplexity=10, n_iter=300):
+    test_features = test_features.cpu().detach().numpy().data
+    y = targets.cpu().detach().numpy().data
+
+    pca = decomposition.PCA(n_components=10)
+    reduced_test_features = pca.fit_transform(test_features)
+
+    tsne = TSNE(n_components=n_components, perplexity=perplexity, n_iter=n_iter, learning_rate=200.0, init='random')
+    # tsne_ref = tsne.fit_transform(test_features)
+    tsne_ref = tsne.fit_transform(reduced_test_features)
+
+    plt.scatter(tsne_ref[:, 0], tsne_ref[:, 1], marker='.',
+                # cmap=cm.Paired, c=y)
+                cmap='tab10', c=y)
+    if title is not None:
+        plt.title(f't-SNE ({title})', weight='bold').set_fontsize('14')
+    plt.xlabel('x', weight='bold').set_fontsize('10')
+    plt.ylabel('y', weight='bold').set_fontsize('10')
+    plt.colorbar()
+    plt.axis('equal')
+
+    return plt
+
+
+def multi_plot_tsne(test_features_list, targets_list=None, title_list=None, rows=1, cols=1, save=None,
+                    n_components=2, perplexity=10, n_iter=300):
+    fig = plt.figure(figsize=(8*cols, 7*rows))
+    i = 0
+    for row in range(rows):
+        for col in range(cols):
+            plt.subplot(rows, cols, i+1)
+            single_plot_tsne(test_features_list[i], targets_list[i], title_list[i],
+                             n_components=n_components, perplexity=perplexity, n_iter=n_iter)
+            i = i + 1
+    if save is not None:
+        plt.savefig(save)
+
+    return plt, fig
