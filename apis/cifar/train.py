@@ -24,6 +24,7 @@ class Trainer():
                 self.wandb_logger.before_train_iter()
 
             optimizer.zero_grad()
+            self.net.module.hook_features.clear()
 
             if args.no_jsd or args.aug == 'none':
                 # no apply additional loss. augmentations are optional
@@ -51,7 +52,12 @@ class Trainer():
                 # Cross-entropy is only computed on clean images
                 ce_loss = F.cross_entropy(logits_clean, targets)
                 additional_loss = get_additional_loss(args.additional_loss, logits_clean, logits_aug1, logits_aug2,
-                                                      12, targets)
+                                                      12, targets, args.temper)
+                for key, feature in self.net.module.hook_features.items():
+                    feature_clean, feature_aug1, feature_aug2 = torch.split(feature[0], images[0].size(0))
+                    k = get_additional_loss(args.additional_loss, feature_clean, feature_aug1, feature_aug2,
+                                                      12, targets, args.temper, args.reduction)
+                    additional_loss += k
 
                 loss = ce_loss + additional_loss
                 total_ce_loss += float(ce_loss.data)
@@ -75,7 +81,7 @@ class Trainer():
         return loss_ema, wandb_features
 
 
-    def train2(self, train_loader, args, criterion_al, optimizer, optimizer_al, scheduler, wandb_logger=None):
+    def train2(self, train_loader, args, optimizer, scheduler, criterion_al, optimizer_al, scheduler_al, wandb_logger=None):
         """Train for one epoch."""
         self.net.train()
         wandb_features = {}
@@ -125,12 +131,9 @@ class Trainer():
 
             loss.backward()
             optimizer.step()
-            # by doing so, weight_cent would not impact on the learning of centers\
-            weight_cent = 1
-            for param in criterion_al.parameters():
-                param.grad.data *= (1. / weight_cent)
             optimizer_al.step()
             scheduler.step()
+            scheduler_al.step()
             loss_ema = loss_ema * 0.9 + float(loss) * 0.1
             if i % args.print_freq == 0:
                 print('Train Loss {:.3f}'.format(loss_ema))

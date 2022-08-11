@@ -140,6 +140,12 @@ def get_args_from_parser():
         type=float,
         help='temperature scaling')
     parser.add_argument(
+        '--reduction',
+        default='batchmean',
+        type=str,
+        choices=['batchmean', 'mean'],
+        help='temperature scaling')
+    parser.add_argument(
         '--jsd-layer',
         default='features',
         type=str,
@@ -322,7 +328,7 @@ def main():
     elif args.additional_loss == 'mlpjsd':
         criterion_al = MlpJSDLoss(in_feature=128, out_feature=128)
         criterion_al = criterion_al.cuda()
-        optimizer_al = torch.optim.SGD(criterion_al.parameters(), lr=0.5)
+        optimizer_al = torch.optim.SGD(criterion_al.parameters(), lr=args.learning_rate)
         scheduler_al = torch.optim.lr_scheduler.LambdaLR(
             optimizer_al,
             lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
@@ -333,7 +339,10 @@ def main():
 
     ''' Hook Layers '''
     if args.hook:
-        hook = FeatureHook(["block3.layer.5.conv2"])
+        hook = FeatureHook(["block1.layer.5.conv2",
+                            "block2.layer.5.conv2",
+                            "block3.layer.5.conv2"
+                            ])
         hook.hook_multi_layer(net)
 
     optimizer = torch.optim.SGD(
@@ -417,7 +426,8 @@ def main():
         wandb_logger.before_train_epoch() # wandb here
         begin_time = time.time()
         if args.additional_loss in ['center_loss', 'mlpjsd']:
-            train_loss_ema, train_features = trainer.train2(train_loader, args, criterion_al, optimizer, optimizer_al, scheduler)
+            train_loss_ema, train_features = trainer.train2(train_loader, args,  optimizer, scheduler,
+                                                            criterion_al, optimizer_al, scheduler_al)
         else:
             train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
         wandb_logger.after_train_epoch(dict(train_features=train_features)) # wandb here
