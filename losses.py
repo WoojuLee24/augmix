@@ -10,7 +10,7 @@ def get_additional_loss(name, logits_clean, logits_aug1, logits_aug2,
         loss = 0
     elif name == 'jsd':
         loss = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight)
-    elif name == 'jsd_temper':
+    elif name == 'jsd_temper' or name == 'mlpjsdv1.1':
         loss = jsd_temper(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, reduction)
     elif name == 'kl':
         loss = kl(logits_clean, logits_aug1, logits_aug2, lambda_weight)

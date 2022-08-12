@@ -32,6 +32,7 @@ import numpy as np
 from third_party.ResNeXt_DenseNet.models.densenet import densenet
 from third_party.ResNeXt_DenseNet.models.resnext import resnext29
 from third_party.WideResNet_pytorch.wideresnet import WideResNet
+from third_party.WideResNet_pytorch.wideresnetproj import WideResNetProj
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -72,7 +73,7 @@ def get_args_from_parser():
         '-m',
         type=str,
         default='wrn',
-        choices=['wrn', 'allconv', 'densenet', 'resnext'],
+        choices=['wrn', 'wrnproj', 'allconv', 'densenet', 'resnext'],
         help='Choose architecture.')
     # Optimization options
     parser.add_argument(
@@ -132,7 +133,7 @@ def get_args_from_parser():
         '-al',
         default='jsd',
         type=str,
-        choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss', 'mlpjsd'],
+        choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1'],
         help='Type of additional loss')
     parser.add_argument(
         '--temper',
@@ -314,6 +315,8 @@ def main():
         net = densenet(num_classes=num_classes)
     elif args.model == 'wrn':
         net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
+    elif args.model == 'wrnproj':
+        net = WideResNetProj(args.layers, num_classes, args.widen_factor, args.droprate, args.jsd_layer)
     elif args.model == 'allconv':
         net = AllConvNet(num_classes)
     elif args.model == 'resnext':
@@ -428,6 +431,8 @@ def main():
         if args.additional_loss in ['center_loss', 'mlpjsd']:
             train_loss_ema, train_features = trainer.train2(train_loader, args,  optimizer, scheduler,
                                                             criterion_al, optimizer_al, scheduler_al)
+        elif args.additional_loss in ['mlpjsdv1.1']:
+            train_loss_ema, train_features = trainer.train1_1(train_loader, args, optimizer, scheduler)
         else:
             train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
         wandb_logger.after_train_epoch(dict(train_features=train_features)) # wandb here
