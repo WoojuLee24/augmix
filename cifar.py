@@ -33,6 +33,9 @@ from third_party.ResNeXt_DenseNet.models.densenet import densenet
 from third_party.ResNeXt_DenseNet.models.resnext import resnext29
 from third_party.WideResNet_pytorch.wideresnet import WideResNet
 from third_party.WideResNet_pytorch.wideresnetproj import WideResNetProj
+from third_party.WideResNet_pytorch.wideresnet_encoder import WideResNetEncoder
+from third_party.supervised_contrastive_net import SupConNet
+from models import MyDataParallel
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -40,7 +43,7 @@ from torchvision import datasets
 from torchvision import transforms
 
 from datasets import *
-from losses import CenterLoss, MlpJSDLoss
+from losses import CenterLoss, MlpJSDLoss, SupConLoss
 from datasets.mixdataset import BaseDataset, AugMixDataset
 from feature_hook import FeatureHook
 from utils import WandbLogger
@@ -73,7 +76,7 @@ def get_args_from_parser():
         '-m',
         type=str,
         default='wrn',
-        choices=['wrn', 'wrnproj', 'allconv', 'densenet', 'resnext'],
+        choices=['wrn', 'wrnproj', 'allconv', 'densenet', 'resnext', 'wrn_encoder'],
         help='Choose architecture.')
     # Optimization options
     parser.add_argument(
@@ -133,13 +136,23 @@ def get_args_from_parser():
         '-al',
         default='jsd',
         type=str,
-        choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1'],
+        choices=['none', 'jsd', 'jsd_temper', 'jsd_kd','kl', 'supconv0.01', 'supconv0.02', 'cossim',
+                 'jsdv2', 'jsd_kdv2',
+                 'supconv0.1',
+                 #'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1',
+                 ],
         help='Type of additional loss')
     parser.add_argument(
         '--temper',
         default=1.0,
         type=float,
         help='temperature scaling')
+    parser.add_argument(
+        '--lambda-weight',
+        '-lw',
+        default=12.0,
+        type=float,
+        help='additional loss weight')
     parser.add_argument(
         '--reduction',
         default='batchmean',
@@ -239,8 +252,13 @@ def main():
         resume_path = (args.resume).split('/')
         resume_model = resume_path[-2]
         name = resume_model + '_analysis'
+        save_path = os.path.join(args.save, "analysis")
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
     else:
-        name = f"{args.aug}_{args.additional_loss}_b{args.batch_size}"
+        # name = f"{args.aug}_{args.additional_loss}_b{args.batch_size}"
+        save_path = args.save
+        name = save_path.split("/")[-1]
     if args.wandb:
         wandg_config = dict(project='AI28', entity='kaist-url-ai28', name=name)
         wandb_logger = WandbLogger(wandg_config, args)
@@ -315,6 +333,8 @@ def main():
         net = densenet(num_classes=num_classes)
     elif args.model == 'wrn':
         net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
+    elif args.model == 'wrn_encoder':
+        net = WideResNetEncoder(args.layers, num_classes, args.widen_factor, args.droprate)
     elif args.model == 'wrnproj':
         net = WideResNetProj(args.layers, num_classes, args.widen_factor, args.droprate, args.jsd_layer)
     elif args.model == 'allconv':
@@ -323,6 +343,16 @@ def main():
         net = resnext29(num_classes=num_classes)
     else: # default == 'wrn'
         net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
+
+    '''create projection super network'''
+    if args.additional_loss == 'supconv0.1':
+        net = SupConNet(net, head='mlp', in_feature=2048, out_feature=128)
+        net.encoder = MyDataParallel(net.encoder)
+        net = net.cuda()
+        cudnn.benchmark = True
+    else:
+        net = MyDataParallel(net).cuda()
+        cudnn.benchmark = True
 
     ''' Create additional loss model '''
     if args.additional_loss == 'center_loss':
@@ -339,6 +369,17 @@ def main():
                 args.epochs * len(train_loader),
                 1,  # lr_lambda computes multiplicative factor
                 1e-6 / args.learning_rate))
+    elif args.additional_loss == 'supconv0.1':
+        criterion_al = SupConLoss(temperature=args.temper)
+        criterion_al = criterion_al.cuda()
+        # optimizer_al = torch.optim.SGD(criterion_al.parameters(), lr=args.learning_rate)
+        # scheduler_al = torch.optim.lr_scheduler.LambdaLR(
+        #     optimizer_al,
+        #     lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
+        #         step,
+        #         args.epochs * len(train_loader),
+        #         1,  # lr_lambda computes multiplicative factor
+        #         1e-6 / args.learning_rate))
 
     ''' Hook Layers '''
     if args.hook:
@@ -355,11 +396,11 @@ def main():
         weight_decay=args.decay,
         nesterov=True)
 
-    # Distribute model across all visible GPUs
-    from models import MyDataParallel
-    # net = torch.nn.DataParallel(net).cuda()
-    net = MyDataParallel(net).cuda()
-    cudnn.benchmark = True
+    # # Distribute model across all visible GPUs
+    # from models import MyDataParallel
+    # # net = torch.nn.DataParallel(net).cuda()
+    # net = MyDataParallel(net).cuda()
+    # cudnn.benchmark = True
 
     start_epoch = 0
 
@@ -391,16 +432,24 @@ def main():
         return
 
     elif args.analysis:
-        corr1_data = datasets.CIFAR10(
-            '/ws/data/cifar', train=False, transform=test_transform, download=True)
-        corr2_data = datasets.CIFAR10(
-            '/ws/data/cifar', train=False, transform=test_transform, download=True)
-        # test_c_dg
-        test_dg_loss, test_dg_features, test_dg_table = test_c_dg(net, test_data, args, corr1_data, corr2_data, base_c_path)
+        test_c_acc, test_c_table, test_c_cm = test_c(net, test_data, args, base_c_path)
 
         # wandb here
-        wandb_logger.log_analysis(dict(test_dg_table=test_dg_table,
-                                       test_dg_features=test_dg_features))
+        wandb_logger.log_evaluate(dict(test_c_table=test_c_table,
+                                       test_c_acc=test_c_acc,
+                                       test_c_cm=test_c_cm,
+                                       ))
+
+        # corr1_data = datasets.CIFAR10(
+        #     '/ws/data/cifar', train=False, transform=test_transform, download=True)
+        # corr2_data = datasets.CIFAR10(
+        #     '/ws/data/cifar', train=False, transform=test_transform, download=True)
+        # # test_c_dg
+        # test_dg_loss, test_dg_features, test_dg_table = test_c_dg(net, test_data, args, corr1_data, corr2_data, base_c_path)
+        #
+        # # wandb here
+        # wandb_logger.log_analysis(dict(test_dg_table=test_dg_table,
+        #                                test_dg_features=test_dg_features))
 
         return
 
@@ -428,13 +477,18 @@ def main():
     for epoch in range(start_epoch, args.epochs):
         wandb_logger.before_train_epoch() # wandb here
         begin_time = time.time()
-        if args.additional_loss in ['center_loss', 'mlpjsd']:
-            train_loss_ema, train_features = trainer.train2(train_loader, args,  optimizer, scheduler,
-                                                            criterion_al, optimizer_al, scheduler_al)
-        elif args.additional_loss in ['mlpjsdv1.1']:
-            train_loss_ema, train_features = trainer.train1_1(train_loader, args, optimizer, scheduler)
-        else:
-            train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
+        # if args.additional_loss in ['center_loss', 'mlpjsd']:
+        #     train_loss_ema, train_features = trainer.train2(train_loader, args,  optimizer, scheduler,
+        #                                                     criterion_al, optimizer_al, scheduler_al)
+        # elif args.additional_loss in ['mlpjsdv1.1']:
+        #     train_loss_ema, train_features = trainer.train1_1(train_loader, args, optimizer, scheduler)
+        # elif args.additional_loss in ['supconv0.1']:
+        #     train_loss_ema, train_features = trainer.train3_1(train_loader, args, optimizer, scheduler)
+        # else:
+        #     train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
+
+        train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
+
         wandb_logger.after_train_epoch(dict(train_features=train_features)) # wandb here
 
         test_loss, test_acc, test_features, test_cm = test(net, test_loader, args)
@@ -473,7 +527,7 @@ def main():
                     test_loss, 100 - 100. * test_acc))
 
     test_c_acc, test_c_table, test_c_cm = test_c(net, test_data, args, base_c_path)
-    wandb_logger.after_run(dict(test_c_table=test_c_table, # wandb here
+    wandb_logger.after_run(dict(test_c_table=test_c_table,  # wandb here
                                 test_c_acc=test_c_acc,
                                 test_c_cm=test_c_cm))
 
