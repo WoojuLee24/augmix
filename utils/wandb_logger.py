@@ -1,4 +1,5 @@
 from utils import plot_confusion_matrix
+import pdb
 
 class WandbLogger():
     def __init__(self,
@@ -112,6 +113,20 @@ class WandbLogger():
             if 'test_c_cm' in wandb_input:
                 test_c_plt = plot_confusion_matrix(wandb_input['test_c_cm'])
                 self.wandb.log({'corruption': test_c_plt})
+
+            # # 'tsne plot -> no figure saved: debug required'
+            # if 'tsne_features' in wandb_input:
+            #     self.wandb.log({f"t-sne(features)": self.wandb.Image(wandb_input['tsne_features'])})
+            # if 'tsne_logits' in wandb_input:
+            #     self.wandb.log({f"t-sne(logits)": self.wandb.Image(wandb_input['tsne_logits'])})
+            # if 'tsne' in wandb_input:
+            #     self.wandb.log({f"t-sne": self.wandb.Image(wandb_input['tsne'])})
+            # if 'test_c_tsne' in wandb_input:
+            #     for key, tsne in wandb_input['test_c_tsne'].items():
+            #         # pdb.set_trace()
+            #         # tsne.savefig('/ws/data/debug/debug2.jpg')
+            #         self.wandb.log({f"t-sne": self.wandb.Image(tsne)})
+
             # for key, value in test_c_features.items():
             #     self.wandb.log({key: value})
             # test_c_plt = plot_confusion_matrix(test_c_cm)

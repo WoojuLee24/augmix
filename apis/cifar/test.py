@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -6,35 +7,46 @@ import pandas as pd
 from datasets.concatdataset import ConcatDataset
 from losses import get_additional_loss, CenterLoss
 
+import pdb
 
-def test(net, test_loader, args):
+def test(net, test_loader, args, data_type='clean'):
     """Evaluate network on given dataset."""
     net.eval()
     total_loss = 0.
     total_correct = 0
     wandb_features = dict()
     confusion_matrix = torch.zeros(10, 10)
-    tsne_features = []
+
     with torch.no_grad():
         for images, targets in test_loader:
             images, targets = images.cuda(), targets.cuda()
             logits = net(images)
+
+            if args.analysis:
+                from utils.visualize import multi_plot_tsne
+                input_list = [net.module.features, logits]
+                targets_list = [targets, targets]
+                title_list = ['features', 'logits']
+                save_path = os.path.join(args.save, 'analysis', data_type + '.jpg')
+                tsne, fig = multi_plot_tsne(input_list, targets_list, title_list, rows=1, cols=2,
+                                            perplexity=30, n_iter=300,
+                                            save=save_path, log_wandb=args.wandb, data_type=data_type)
+
             loss = F.cross_entropy(logits, targets)
             pred = logits.data.max(1)[1]
             total_loss += float(loss.data)
             total_correct += pred.eq(targets.data).sum().item()
-            # plt = plot_tsne(net.module.features, targets)
-            # plt.savefig("/ws/data/log/debug.jpg")
-            # tsne_features.append(net.module.features)
+
             for t, p in zip(targets.view(-1), pred.view(-1)):
                 confusion_matrix[t.long(), p.long()] += 1
+
     wandb_features['test/loss'] = total_loss / len(test_loader.dataset)
     wandb_features['test/error'] = 100 - 100. * total_correct / len(test_loader.dataset)
     return total_loss / len(test_loader.dataset), total_correct / len(test_loader.dataset), wandb_features, confusion_matrix
 
 
 CORRUPTIONS = [
-    'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
+    'clean', 'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
     'glass_blur', 'motion_blur', 'zoom_blur', 'snow', 'frost', 'fog',
     'brightness', 'contrast', 'elastic_transform', 'pixelate',
     'jpeg_compression'
@@ -42,12 +54,20 @@ CORRUPTIONS = [
 
 
 def test_c(net, test_data, args, base_path):
-    """Evaluate network on given corrupted dataset."""
+    """
+    Evaluate network on given corrupted dataset.
+    return:
+    corruption_acc
+    wandb_table: loss and error rate for each corruption dataset.
+    confusion_matrix
+    tsne_features
+    """
     corruption_accs = []
     wandb_features = dict()
     wandb_plts = dict()
     wandb_table = pd.DataFrame(columns=CORRUPTIONS, index=['loss', 'error'])
     confusion_matrices = []
+
     for corruption in CORRUPTIONS:
         # Reference to original data is mutated
         test_data.data = np.load(base_path + corruption + '.npy')
@@ -60,18 +80,16 @@ def test_c(net, test_data, args, base_path):
             num_workers=args.num_workers,
             pin_memory=True)
 
-        test_loss, test_acc, _, confusion_matrix = test(net, test_loader,args)
-        # wandb_features['test_c/{}.loss'.format(corruption)] = test_loss
-        # wandb_features['test_c/{}.error'.format(corruption)] = 100 - 100. * test_acc
+        test_loss, test_acc, _, confusion_matrix = test(net, test_loader, args, data_type=corruption)
+
         wandb_table[corruption]['loss'] = test_loss
         wandb_table[corruption]['error'] = 100 - 100. * test_acc
-        # wandb_plts[corruption] = confusion_matrix
+
         corruption_accs.append(test_acc)
         confusion_matrices.append(confusion_matrix.cpu().detach().numpy())
         print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
             corruption, test_loss, 100 - 100. * test_acc))
 
-    # return np.mean(corruption_accs), wandb_features
     return np.mean(corruption_accs), wandb_table, np.mean(confusion_matrices, axis=0)
 
 

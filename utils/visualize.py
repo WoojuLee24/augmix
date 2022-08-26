@@ -6,7 +6,8 @@ from matplotlib import cm
 import pandas as pd
 from sklearn.manifold import TSNE
 from sklearn import decomposition
-import seaborn as sns
+import wandb
+import pdb
 
 
 def plot_confusion_matrix(cm,
@@ -99,7 +100,7 @@ def single_plot_tsne(test_features, targets=None, title=None,
 
 
 def multi_plot_tsne(test_features_list, targets_list=None, title_list=None, rows=1, cols=1, save=None,
-                    n_components=2, perplexity=10, n_iter=300):
+                    n_components=2, perplexity=10, n_iter=300, log_wandb=False, data_type='clean'):
     fig = plt.figure(figsize=(8*cols, 7*rows))
     i = 0
     for row in range(rows):
@@ -108,6 +109,8 @@ def multi_plot_tsne(test_features_list, targets_list=None, title_list=None, rows
             single_plot_tsne(test_features_list[i], targets_list[i], title_list[i],
                              n_components=n_components, perplexity=perplexity, n_iter=n_iter)
             i = i + 1
+    if log_wandb:
+        wandb.log({f"t-sne/{data_type}": wandb.Image(plt)})
     if save is not None:
         plt.savefig(save)
 
