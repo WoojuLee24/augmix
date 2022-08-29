@@ -10,9 +10,9 @@ from losses import CenterLoss, MlpJSDLoss, SupConLoss
 from third_party.ResNeXt_DenseNet.models.densenet import densenet
 from third_party.ResNeXt_DenseNet.models.resnext import resnext29
 from third_party.WideResNet_pytorch.wideresnet import WideResNet
-# from third_party.supervised_contrastive_net import SupConNet
 from third_party.WideResNet_pytorch.wideresnetproj import WideResNetProj
-# from third_party.WideResNet_pytorch.wideresnet_encoder import WideResNetEncoder
+from third_party.supervised_contrastive_net import SupConNet
+from third_party.WideResNet_pytorch.wideresnet_encoder import WideResNetEncoder
 
 def build_net(args, num_classes):
     if args.dataset == 'cifar10' or 'cifar100':
