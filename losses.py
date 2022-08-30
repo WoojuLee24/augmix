@@ -13,7 +13,8 @@ def get_additional_loss(name, logits_clean, logits_aug1, logits_aug2,
     elif name == 'jsdv2':
         loss = jsdv2(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'jsdv3':
-        loss = jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
+        loss, features = jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
+        return loss, features
     elif name == 'jsd_temper' or name == 'mlpjsdv1.1':
         loss = jsd_temper(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, reduction)
     elif name == 'jsd_kd':
@@ -28,6 +29,8 @@ def get_additional_loss(name, logits_clean, logits_aug1, logits_aug2,
         loss = ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets)
     elif name == 'supconv0.01':
         loss = supconv0_01(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight,  temper, reduction)
+    elif name == 'supconv0.01_test':
+        loss = supconv0_01_test(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction)
     elif name == 'supconv0.02':
         loss = supconv0_02(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight,  temper, reduction)
 
@@ -64,22 +67,85 @@ def jsdv2(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1):
     return loss
 
 
+def get_kl_matrix(p, q):
+    B, C = p.size()
+    ent = p * p.log()
+    ent = ent.unsqueeze(dim=1).repeat(1, B, 1).sum(-1)
+    ce = torch.matmul(p, q.log().T)
+    kl = ent - ce
+    return kl
+
+def get_jsd_matrix(p, q, r):
+    m = (p + q + r) / 3
+    jsd = (get_kl_matrix(p, m) + get_kl_matrix(q, m) + get_kl_matrix(r, m)) / 3
+    return jsd
+
+
 def jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None):
     '''
     JSD loss edited: mixture probability is prediction probability from jsdv2
     '''
 
-    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1),\
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
                               F.softmax(logits_aug1 / temper, dim=1), \
                               F.softmax(logits_aug2 / temper, dim=1)
 
-    # Clamp mixture distribution to avoid exploding KL divergence
-    p_mixture = (p_clean + p_aug1 + p_aug2) / 3
-    loss = lambda_weight * (F.kl_div(p_clean.log(), p_mixture, reduction='batchmean') +
-                            F.kl_div(p_aug1.log(), p_mixture, reduction='batchmean') +
-                            F.kl_div(p_aug2.log(), p_mixture, reduction='batchmean')) / 3.
+    jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
 
-    return loss
+    mask_diff_triu = mask_diff_class * mask_triu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triu.sum()
+
+    mask_same_triu = mask_same_class * mask_triu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triu.sum()
+
+    loss = lambda_weight * jsd_distance
+
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                }
+
+    return loss, features
+
+
+def kl_matrix(p, q, mask):
+    p = p.unsqueeze(dim=1)
+    q = q.unsqueeze(dim=0)
+    p_t = torch.transpose(p, 0, 1).contiguous()
+    kl = p * p.log() - p_t * q.log()
+    kl = kl.sum(dim=-1)
+    kl = kl * mask
+    a = mask.sum()
+    kl = kl.sum() / mask.sum()
+    # # shape is same, value is different -> debug is required.
+    # kl2 = F.kl_div(p.log(), q, reduction='none')
+    # kl2_sum = kl2.sum() / 512 / 512
+    return kl
+
+def jsd_matrix(p, q, r, mask):
+    m = (p + q + r) / 3
+    jsd = (kl_matrix(p, m, mask) + kl_matrix(q, m, mask) + kl_matrix(r, m, mask)) / 3
+
+    return jsd
+
 
 def jsd_kd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, reduction='batchmean'):
 
@@ -281,6 +347,101 @@ def supconv0_01(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weig
 
     # compute mean of log-likelihood over positive
     mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+
+    # loss
+    loss = - (temper / base_temper) * mean_log_prob_pos
+    loss = loss.view(anchor_count, batch_size).mean()
+    loss *= lambda_weight
+
+    return loss
+
+
+def supconv0_01_test(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=0.1, temper=0.07, reduction='batchmean'):
+
+    """
+    original supcontrast loss
+    """
+
+    mask = None
+    contrast_mode = 'all'
+    base_temper = temper
+    device = logits_clean.device
+
+    # temporary deprecated
+    logits_clean, logits_aug1, logits_aug2 = F.normalize(logits_clean, dim=1), \
+                                             F.normalize(logits_aug1, dim=1), \
+                                             F.normalize(logits_aug2, dim=1),
+
+
+    logits_clean, logits_aug1, logits_aug2 = torch.unsqueeze(logits_clean, dim=1), \
+                                             torch.unsqueeze(logits_aug1, dim=1), \
+                                             torch.unsqueeze(logits_aug2, dim=1)
+    features = torch.cat([logits_clean, logits_aug1, logits_aug2], dim=1)
+
+    if len(features.shape) < 3:
+        raise ValueError('`features` needs to be [bsz, n_views, ...],'
+                         'at least 3 dimensions are required')
+    if len(features.shape) > 3:
+        features = features.view(features.shape[0], features.shape[1], -1)
+
+    batch_size = features.shape[0]
+    if labels is not None and mask is not None:
+        raise ValueError('Cannot define both `labels` and `mask`')
+    elif labels is None and mask is None:
+        mask = torch.eye(batch_size, dtype=torch.float32).to(device)
+    elif labels is not None:
+        labels = labels.contiguous().view(-1, 1)
+        if labels.shape[0] != batch_size:
+            raise ValueError('Num of labels does not match num of features')
+        mask = torch.eq(labels, labels.T).float().to(device)
+    else:
+        mask = mask.float().to(device)
+    mask_np = mask.cpu().detach().numpy()
+    contrast_count = features.shape[1]
+    contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0)
+    if contrast_mode == 'one':
+        anchor_feature = features[:, 0]
+        anchor_count = 1
+    elif contrast_mode == 'all':
+        anchor_feature = contrast_feature
+        anchor_count = contrast_count
+    else:
+        raise ValueError('Unknown mode: {}'.format(self.contrast_mode))
+
+    # compute logits
+    anchor_dot_contrast = torch.div(
+        torch.matmul(anchor_feature, contrast_feature.T),
+        temper)
+    anchor_dot_contrast_np = anchor_dot_contrast.cpu().detach().numpy()
+    # for numerical stability
+    logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
+    logits = anchor_dot_contrast - logits_max.detach()
+    logits_np = logits.cpu().detach().numpy()
+
+    # tile mask
+    mask = mask.repeat(anchor_count, contrast_count)
+    mask_np2 = mask.cpu().detach().numpy()
+    # mask-out self-contrast cases
+    logits_mask = torch.scatter(
+        torch.ones_like(mask),
+        1,
+        torch.arange(batch_size * anchor_count).view(-1, 1).to(device),
+        0
+    )
+    mask_np3 = logits_mask.cpu().detach().numpy()
+    mask = mask * logits_mask
+    mask_np4 = mask.cpu().detach().numpy()
+
+    # compute log_prob
+    exp_logits = torch.exp(logits) * logits_mask
+    exp_logits_np = exp_logits.cpu().detach().numpy()
+    log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+    log_exp_logits_sum_np = torch.log(exp_logits.sum(1, keepdim=True)).cpu().detach().numpy()
+    log_prob_np = log_prob.cpu().detach().numpy()
+
+    # compute mean of log-likelihood over positive
+    mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+    mean_log_prob_pos_np = mean_log_prob_pos.cpu().detach().numpy()
 
     # loss
     loss = - (temper / base_temper) * mean_log_prob_pos

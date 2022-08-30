@@ -174,6 +174,107 @@ class Trainer():
         wandb_features['train/error'] = 100 - 100. * total_correct / datasize
         return loss_ema, wandb_features
 
+
+    def train3(self, data_loader):
+        """Train for one epoch."""
+        """
+        log jsd distance of same instance, same class, and different class.
+        use jsdv3 additional_loss
+        """
+        self.net.train()
+        wandb_features = dict()
+        total_ce_loss, total_additional_loss, total_correct, total_aug_correct,\
+        total_same_instance_loss, total_same_class_loss, total_diff_class_loss = 0., 0., 0., 0., 0., 0., 0.
+        data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
+
+        end = time.time()
+        for i, (images, targets) in enumerate(data_loader):
+            ''' Compute data loading time '''
+            data_time = time.time() - end
+            self.optimizer.zero_grad()
+            if self.wandb_logger is not None:
+                self.wandb_logger.before_train_iter()
+            self.net.module.hook_features.clear()
+
+            if self.args.no_jsd or self.args.aug == 'none':
+                images, targets = images.to(self.device), targets.to(self.device)
+                logits = self.net(images)
+                self.wandb_input = self.net.get_wandb_input()
+
+                loss = F.cross_entropy(logits, targets)
+                pred = logits.data.max(1)[1]
+                total_ce_loss += float(loss.data)
+                total_correct += pred.eq(targets.data).sum().item()
+                acc1, acc5 = accuracy(logits, targets, topk=(1, 5))
+
+            else:
+                images_all = torch.cat(images, 0).to(self.device)
+                targets = targets.to(self.device)
+
+                logits_all = self.net(images_all)  # , targets)
+                self.wandb_input = self.net.get_wandb_input()
+
+                logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
+                pred = logits_clean.data.max(1)[1]
+                pred_aug1 = logits_aug1.data.max(1)[1]
+                pred_aug2 = logits_aug2.data.max(1)[1]
+
+                ce_loss = F.cross_entropy(logits_clean, targets)
+                additional_loss, feature = get_additional_loss(self.args.additional_loss,
+                                                               logits_clean, logits_aug1, logits_aug2,
+                                                               self.args.lambda_weight, targets, self.args.temper,
+                                                               self.args.reduction)
+
+                loss = ce_loss + additional_loss
+                total_ce_loss += float(ce_loss.data)
+                total_additional_loss += float(additional_loss.data)
+                total_same_instance_loss += float(feature['jsd_distance'])
+                total_same_class_loss += float(feature['jsd_distance_diff_class'])
+                total_diff_class_loss += float(feature['jsd_distance_same_class'])
+                total_correct += pred.eq(targets.data).sum().item()
+                total_aug_correct += pred_aug1.eq(pred.data).sum().item() + pred_aug2.eq(pred.data).sum().item()
+
+                acc1, acc5 = accuracy(logits_clean, targets, topk=(1, 5))
+
+            loss.backward()
+            self.optimizer.step()
+            self.scheduler.step()
+
+            batch_time = time.time() - end
+            end = time.time()
+
+            beta = 0.1  # TODO: what is the good beta value? 0.1(noisy and fast) or 0.9(smooth and slow)?
+            batch_ema = beta * batch_ema + (1 - beta) * float(batch_time)
+            data_ema = beta * data_ema + (1 - beta) * float(data_time)
+            loss_ema = beta * loss_ema + (1 - beta) * float(loss)
+            acc1_ema = beta * acc1_ema + (1 - beta) * float(acc1)
+            acc5_ema = beta * acc5_ema + (1 - beta) * float(acc5)
+
+            if i % self.args.print_freq == 0:
+                print(
+                    'Batch {}/{}: Data Time {:.3f} | Batch Time {:.3f} | Train Loss {:.3f} | Train Acc1 '
+                    '{:.3f} | Train Acc5 {:.3f}'.format(i, len(data_loader), data_ema,
+                                                        batch_ema, loss_ema, acc1_ema,
+                                                        acc5_ema))
+            if i % self.args.log_freq == 0:
+                self.wandb_input['loss'] = float(loss)
+                self.wandb_input['acc1'] = float(acc1)
+                self.wandb_input['acc5'] = float(acc5)
+                if self.wandb_logger is not None:
+                    self.wandb_logger.after_train_iter(self.wandb_input)
+
+        wandb_features['train/ce_loss'] = total_ce_loss / len(data_loader.dataset)
+        wandb_features['train/additional_loss'] = total_additional_loss / len(data_loader.dataset)
+        wandb_features['train/total_same_instance_loss'] = total_same_instance_loss / len(train_loader.dataset)
+        wandb_features['train/total_same_class_loss'] = total_same_class_loss / len(train_loader.dataset)
+        wandb_features['train/total_diff_class_loss'] = total_diff_class_loss / len(train_loader.dataset)
+        wandb_features['train/loss'] = (total_ce_loss + total_additional_loss) / len(data_loader.dataset)
+        wandb_features['train/error'] = 100 - 100. * total_correct / len(data_loader.dataset)
+        wandb_features['train/aug_error'] = 100 - 100. * total_aug_correct / len(train_loader.dataset) / 2
+
+        return loss_ema, wandb_features  # acc1_ema, batch_ema
+
+
     def train(self, data_loader):
         self.net.train()
         wandb_features = dict()

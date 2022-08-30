@@ -63,7 +63,9 @@ def get_args_from_parser():
     parser.add_argument('--additional-loss', '-al',
                         default='jsd',
                         type=str,
-                        choices=['none', 'jsd', 'jsd_temper', 'kl', 'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1'],
+                        choices=['none', 'jsd', 'jsd_temper', 'jsdv3', 'kl',
+                                 'supconv0.01',
+                                 'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1'],
                         help='Type of additional loss')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
     parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
@@ -259,7 +261,12 @@ def main():
             wandb_logger.before_train_epoch() # wandb here
             begin_time = time.time()
             # train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
-            train_loss_ema, train_features = trainer.train(train_loader)
+            if args.additional_loss in ['jsdv3']:
+                train_loss_ema, train_features = trainer.train3(train_loader)
+            else:
+                train_loss_ema, train_features = trainer.train(train_loader)
+            # train_loss_ema, train_features = trainer.train(train_loader)
+
             wandb_logger.after_train_epoch(dict(train_features=train_features))
 
             test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
