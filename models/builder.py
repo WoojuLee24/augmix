@@ -15,7 +15,7 @@ from third_party.supervised_contrastive_net import SupConNet
 from third_party.WideResNet_pytorch.wideresnet_encoder import WideResNetEncoder
 
 def build_net(args, num_classes):
-    if args.dataset == 'cifar10' or 'cifar100':
+    if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
         if args.model == 'densenet':
             net = densenet(num_classes=num_classes)
         elif args.model == 'wrn':

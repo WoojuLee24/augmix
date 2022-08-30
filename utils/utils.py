@@ -1,6 +1,5 @@
 import numpy as np
 
-
 CORRUPTIONS = [
   'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
   'glass_blur', 'motion_blur', 'zoom_blur', 'snow', 'frost', 'fog',
@@ -16,24 +15,25 @@ ALEXNET_ERR = [
 
 
 def compute_mce(corruption_accs):
-  """Compute mCE (mean Corruption Error) normalized by AlexNet performance."""
-  mce = 0.
-  for i in range(len(CORRUPTIONS)):
-    avg_err = 1 - np.mean(corruption_accs[CORRUPTIONS[i]])
-    ce = 100 * avg_err / ALEXNET_ERR[i]
-    mce += ce / 15
-  return mce
+    """Compute mCE (mean Corruption Error) normalized by AlexNet performance."""
+    mce = 0.
+    for i in range(len(CORRUPTIONS)):
+        avg_err = 1 - np.mean(corruption_accs[CORRUPTIONS[i]])
+        ce = 100 * avg_err / ALEXNET_ERR[i]
+        mce += ce / 15
+    return mce
+
 
 def adjust_learning_rate(args, optimizer, epoch):
-  """Sets the learning rate to the initial LR (linearly scaled to batch size) decayed by 10 every n / 3 epochs."""
-  b = args.batch_size / 256.
-  k = args.epochs // 3
-  if epoch < k:
-    m = 1
-  elif epoch < 2 * k:
-    m = 0.1
-  else:
-    m = 0.01
-  lr = args.learning_rate * m * b
-  for param_group in optimizer.param_groups:
-    param_group['lr'] = lr
+    """Sets the learning rate to the initial LR (linearly scaled to batch size) decayed by 10 every n / 3 epochs."""
+    b = args.batch_size / 256.
+    k = args.epochs // 3
+    if epoch < k:
+      m = 1
+    elif epoch < 2 * k:
+        m = 0.1
+    else:
+        m = 0.01
+    lr = args.learning_rate * m * b
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr

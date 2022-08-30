@@ -93,6 +93,11 @@ class WandbLogger():
             if 'tsne' in wandb_input:
                 self.wandb.log({f"t-sne": self.wandb.Image(wandb_input['tsne'])})
 
+            log_list = ['loss', 'acc1', 'acc5']
+            for log_item in log_list:
+                if log_item in wandb_input:
+                    self.wandb.log({f'{log_item}': wandb_input[log_item]})
+
     ###########
     ### ETC ###
     ###########

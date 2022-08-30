@@ -17,8 +17,8 @@ def accuracy(output, target, topk=(1,)):
 
         res = []
         for k in topk:
-          correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
-          res.append(correct_k.mul_(100.0 / batch_size))
+            correct_k = correct[:min(k, maxk)].reshape(-1).float().sum(0, keepdim=True)
+            res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
 
@@ -164,6 +164,8 @@ class Trainer():
             loss_ema = loss_ema * 0.9 + float(loss) * 0.1
             if i % self.args.print_freq == 0:
                 print('Train Loss {:.3f}'.format(loss_ema))
+            if self.wandb_logger is not None:
+                self.wandb_logger.after_train_iter(self.wandb_input)
 
         datasize = len(data_loader.dataset)
         wandb_features['train/ce_loss'] = total_ce_loss / datasize
@@ -197,11 +199,12 @@ class Trainer():
                 total_ce_loss += float(loss.data)
                 total_correct += pred.eq(targets.data).sum().item()
                 acc1, acc5 = accuracy(logits, targets, topk=(1, 5))
+
             else:
                 images_all = torch.cat(images, 0).to(self.device)
                 targets = targets.to(self.device)
 
-                logits_all = self.net(images_all, targets)
+                logits_all = self.net(images_all) #, targets)
                 self.wandb_input = self.net.get_wandb_input()
 
                 logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
@@ -222,7 +225,8 @@ class Trainer():
                 total_additional_loss += float(additional_loss.data)
                 pred = logits_clean.data.max(1)[1]
                 total_correct += pred.eq(targets.data).sum().item()
-                # acc1, acc5 = accuracy(logits_clean, targets, topk=(1, 5))
+
+                acc1, acc5 = accuracy(logits_clean, targets, topk=(1, 5))
 
             loss.backward()
             self.optimizer.step()
@@ -231,9 +235,12 @@ class Trainer():
             batch_time = time.time() - end
             end = time.time()
 
-            batch_ema = 0.1 * batch_ema + 0.9 * float(batch_time)
-            data_ema = 0.1 * data_ema + 0.9 * float(data_time)
-            loss_ema = 0.9 * loss_ema + 0.1 * float(loss)
+            beta = 0.1 # TODO: what is the good beta value? 0.1(noisy and fast) or 0.9(smooth and slow)?
+            batch_ema = beta * batch_ema + (1-beta) * float(batch_time)
+            data_ema = beta * data_ema + (1-beta) * float(data_time)
+            loss_ema = beta * loss_ema + (1-beta) * float(loss)
+            acc1_ema = beta * acc1_ema + (1-beta) * float(acc1)
+            acc5_ema = beta * acc5_ema + (1-beta) * float(acc5)
 
             if i % self.args.print_freq == 0:
                 print(
@@ -241,8 +248,12 @@ class Trainer():
                     '{:.3f} | Train Acc5 {:.3f}'.format(i, len(data_loader), data_ema,
                                                         batch_ema, loss_ema, acc1_ema,
                                                         acc5_ema))
-            if self.wandb_logger is not None:
-                self.wandb_logger.after_train_iter(self.wandb_input)
+            if i % self.args.log_freq == 0:
+                self.wandb_input['loss'] = float(loss)
+                self.wandb_input['acc1'] = float(acc1)
+                self.wandb_input['acc5'] = float(acc5)
+                if self.wandb_logger is not None:
+                    self.wandb_logger.after_train_iter(self.wandb_input)
 
         wandb_features['train/ce_loss'] = total_ce_loss / len(data_loader.dataset)
         wandb_features['train/additional_loss'] = total_additional_loss / len(data_loader.dataset)

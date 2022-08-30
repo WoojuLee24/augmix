@@ -9,14 +9,14 @@ from .pixmix import RandomImages300K, PixMixDataset
 
 def build_dataset(args, corrupted=False):
     dataset = args.dataset
-    if dataset == 'cifar10' or 'cifar100':
+    if (dataset == 'cifar10') or (dataset == 'cifar100'):
         mean, std = [0.5] * 3, [0.5] * 3
     else: # imagenet
         mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
     preprocess = transforms.Compose([transforms.ToTensor(),
                                      transforms.Normalize(mean, std)])
 
-    if dataset == 'cifar10' or 'cifar100':
+    if (dataset == 'cifar10') or (dataset == 'cifar100'):
         train_transform = transforms.Compose([transforms.RandomHorizontalFlip(),
                                               transforms.RandomCrop(32, padding=4)])
         test_transform = preprocess
@@ -50,7 +50,7 @@ def build_dataset(args, corrupted=False):
             traindir = os.path.join(args.clean_data, 'train')
             valdir = os.path.join(args.clean_data, 'val')
             train_dataset = datasets.ImageFolder(traindir, train_transform)
-            train_dataset = AugMixDataset(train_dataset, preprocess)
+            # train_dataset = AugMixDataset(train_dataset, preprocess)
             test_dataset = datasets.ImageFolder(valdir, test_transform)
             base_c_path = None
             num_classes = None

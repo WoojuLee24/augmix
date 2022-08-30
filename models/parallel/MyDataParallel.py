@@ -4,7 +4,11 @@ import torch
 class MyDataParallel(torch.nn.DataParallel):
     def __init__(self, module, device_ids=None, output_device=None, dim=0):
         super(MyDataParallel, self).__init__(module, device_ids, output_device, dim)
-        self.wandb_input = dict()
+        # self.wandb_input = dict()
+        if not hasattr(module, 'hook_features'):
+            self.module.hook_features = dict()
+        if not hasattr(module, 'wandb_input'):
+            self.module.wandb_input = dict()
 
     def get_wandb_input(self):
         net = self.module
