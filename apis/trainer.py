@@ -183,8 +183,9 @@ class Trainer():
         """
         self.net.train()
         wandb_features = dict()
-        total_ce_loss, total_additional_loss, total_correct, total_aug_correct,\
-        total_same_instance_loss, total_same_class_loss, total_diff_class_loss = 0., 0., 0., 0., 0., 0., 0.
+        total_ce_loss, total_additional_loss, \
+        total_same_instance_loss, total_same_class_loss, total_diff_class_loss = 0., 0., 0., 0., 0.
+        total_correct, total_pred_aug_correct, total_aug_correct = 0., 0., 0.
         data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
 
         end = time.time()
@@ -232,7 +233,8 @@ class Trainer():
                 total_same_class_loss += float(feature['jsd_distance_diff_class'])
                 total_diff_class_loss += float(feature['jsd_distance_same_class'])
                 total_correct += pred.eq(targets.data).sum().item()
-                total_aug_correct += pred_aug1.eq(pred.data).sum().item() + pred_aug2.eq(pred.data).sum().item()
+                total_pred_aug_correct += (pred_aug1.eq(pred.data).sum().item() + pred_aug2.eq(pred.data).sum().item()) / 2
+                total_aug_correct += (pred_aug1.eq(targets.data).sum().item() + pred_aug2.eq(targets.data).sum().item()) / 2
 
                 acc1, acc5 = accuracy(logits_clean, targets, topk=(1, 5))
 
@@ -265,12 +267,13 @@ class Trainer():
 
         wandb_features['train/ce_loss'] = total_ce_loss / len(data_loader.dataset)
         wandb_features['train/additional_loss'] = total_additional_loss / len(data_loader.dataset)
-        wandb_features['train/total_same_instance_loss'] = total_same_instance_loss / len(train_loader.dataset)
-        wandb_features['train/total_same_class_loss'] = total_same_class_loss / len(train_loader.dataset)
-        wandb_features['train/total_diff_class_loss'] = total_diff_class_loss / len(train_loader.dataset)
+        wandb_features['train/total_same_instance_loss'] = total_same_instance_loss / len(data_loader.dataset)
+        wandb_features['train/total_same_class_loss'] = total_same_class_loss / len(data_loader.dataset)
+        wandb_features['train/total_diff_class_loss'] = total_diff_class_loss / len(data_loader.dataset)
         wandb_features['train/loss'] = (total_ce_loss + total_additional_loss) / len(data_loader.dataset)
         wandb_features['train/error'] = 100 - 100. * total_correct / len(data_loader.dataset)
-        wandb_features['train/aug_error'] = 100 - 100. * total_aug_correct / len(train_loader.dataset) / 2
+        wandb_features['train/aug_error'] = 100 - 100. * total_aug_correct / len(data_loader.dataset)
+        wandb_features['train/pred_aug_error'] = 100 - 100. * total_pred_aug_correct / len(data_loader.dataset)
 
         return loss_ema, wandb_features  # acc1_ema, batch_ema
 

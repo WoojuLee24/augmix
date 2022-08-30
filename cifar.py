@@ -113,6 +113,7 @@ def get_args_from_parser():
     # Log
     parser.add_argument('--evaluate', action='store_true', help='Eval only.')
     parser.add_argument('--analysis', action='store_true', help='Analysis only. ')
+    parser.add_argument('--log-freq', type=int, default=100, help='Training log frequency (batches) in wandb.')
     parser.add_argument('--wandb', '-wb', action='store_true', help='Turn on wandb log')
     parser.add_argument('--confusion-matrix', '-cm', action='store_true', help='Turn on wandb log')
 
