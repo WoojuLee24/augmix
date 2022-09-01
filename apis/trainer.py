@@ -183,8 +183,8 @@ class Trainer():
         """
         self.net.train()
         wandb_features = dict()
-        total_ce_loss, total_additional_loss, \
-        total_same_instance_loss, total_same_class_loss, total_diff_class_loss = 0., 0., 0., 0., 0.
+        total_ce_loss, total_additional_loss, total_triplet_loss, \
+        total_same_instance_loss, total_same_class_loss, total_diff_class_loss, = 0., 0., 0., 0., 0., 0.
         total_correct, total_pred_aug_correct, total_aug_correct = 0., 0., 0.
         data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
 
@@ -221,7 +221,7 @@ class Trainer():
                 pred_aug2 = logits_aug2.data.max(1)[1]
 
                 ce_loss = F.cross_entropy(logits_clean, targets)
-                additional_loss, feature = get_additional_loss(self.args.additional_loss,
+                additional_loss, feature = get_additional_loss(self.args,
                                                                logits_clean, logits_aug1, logits_aug2,
                                                                self.args.lambda_weight, targets, self.args.temper,
                                                                self.args.reduction)
@@ -230,8 +230,9 @@ class Trainer():
                 total_ce_loss += float(ce_loss.data)
                 total_additional_loss += float(additional_loss.data)
                 total_same_instance_loss += float(feature['jsd_distance'])
-                total_same_class_loss += float(feature['jsd_distance_diff_class'])
-                total_diff_class_loss += float(feature['jsd_distance_same_class'])
+                total_same_class_loss += float(feature['jsd_distance_same_class'])
+                total_diff_class_loss += float(feature['jsd_distance_diff_class'])
+                total_triplet_loss += float(feature['triplet_loss'])
                 total_correct += pred.eq(targets.data).sum().item()
                 total_pred_aug_correct += (pred_aug1.eq(pred.data).sum().item() + pred_aug2.eq(pred.data).sum().item()) / 2
                 total_aug_correct += (pred_aug1.eq(targets.data).sum().item() + pred_aug2.eq(targets.data).sum().item()) / 2
@@ -270,6 +271,7 @@ class Trainer():
         wandb_features['train/total_same_instance_loss'] = total_same_instance_loss / len(data_loader.dataset)
         wandb_features['train/total_same_class_loss'] = total_same_class_loss / len(data_loader.dataset)
         wandb_features['train/total_diff_class_loss'] = total_diff_class_loss / len(data_loader.dataset)
+        wandb_features['train/triplet_loss'] = total_triplet_loss / len(data_loader.dataset)
         wandb_features['train/loss'] = (total_ce_loss + total_additional_loss) / len(data_loader.dataset)
         wandb_features['train/error'] = 100 - 100. * total_correct / len(data_loader.dataset)
         wandb_features['train/aug_error'] = 100 - 100. * total_aug_correct / len(data_loader.dataset)
@@ -313,7 +315,7 @@ class Trainer():
 
                 logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
                 ce_loss = F.cross_entropy(logits_clean, targets)
-                additional_loss = get_additional_loss(self.args.additional_loss,
+                additional_loss = get_additional_loss(self.args,
                                                       logits_clean, logits_aug1, logits_aug2,
                                                       self.args.lambda_weight, targets, self.args.temper,
                                                       self.args.reduction)

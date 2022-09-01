@@ -63,7 +63,7 @@ def get_args_from_parser():
     parser.add_argument('--additional-loss', '-al',
                         default='jsd',
                         type=str,
-                        choices=['none', 'jsd', 'jsd_temper', 'jsdv3', 'kl',
+                        choices=['none', 'jsd', 'jsd_temper', 'jsdv3', 'jsdv3.01', 'jsdv3.02', 'kl',
                                  'supconv0.01',
                                  'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1'],
                         help='Type of additional loss')
@@ -71,6 +71,7 @@ def get_args_from_parser():
     parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
     parser.add_argument('--reduction', default='batchmean', type=str, choices=['batchmean', 'mean'],
                         help='temperature scaling')
+    parser.add_argument('--margin', default=0.02, type=float, help='triplet loss margin')
     parser.add_argument('--jsd-layer', default='features', type=str, choices=['features', 'logits'],
                         help='apply jsd loss for the selected layer')
     parser.add_argument('--hook', action='store_true', help='hook layers for feature extraction')
@@ -262,7 +263,7 @@ def main():
             wandb_logger.before_train_epoch() # wandb here
             begin_time = time.time()
             # train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
-            if args.additional_loss in ['jsdv3']:
+            if args.additional_loss in ['jsdv3', 'jsdv3.01', 'jsdv3.02']:
                 train_loss_ema, train_features = trainer.train3(train_loader)
             else:
                 train_loss_ema, train_features = trainer.train(train_loader)
