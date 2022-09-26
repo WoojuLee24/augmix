@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import time
+import os
 
 from losses import get_additional_loss, CenterLoss
 
@@ -175,7 +176,7 @@ class Trainer():
         return loss_ema, wandb_features
 
 
-    def train3(self, data_loader):
+    def train3(self, data_loader, epoch=0):
         """Train for one epoch."""
         """
         log jsd distance of same instance, same class, and different class.
@@ -225,6 +226,27 @@ class Trainer():
                                                                logits_clean, logits_aug1, logits_aug2,
                                                                self.args.lambda_weight, targets, self.args.temper,
                                                                self.args.reduction)
+                if self.args.debug == True:
+                    B = images[0].size(0)
+                    pred_aug_error = 100 - 100 * (pred_aug1.eq(pred.data).sum().item() + pred_aug2.eq(pred.data).sum().item()) / 2 / B
+
+                    if torch.isnan(additional_loss):
+                        print('pred_aug_error: ', pred_aug_error)
+                        print('prev_feature: ', prev_feature)
+                        save_path = os.path.join(self.args.save, 'epoch{}_pred_aug_error{}_checkpoint.pth.tar'.format(epoch, pred_aug_error))
+                        checkpoint = {
+                            'epoch': epoch,
+                            'best_acc': 0,
+                            'state_dict': self.net.state_dict(),
+                            'additional_loss': additional_loss,
+                            'optimizer': self.optimizer.state_dict(),
+                            'feature': feature
+                        }
+                        torch.save(checkpoint, save_path)
+
+
+                    else:
+                        prev_feature = feature
 
                 loss = ce_loss + additional_loss
                 total_ce_loss += float(ce_loss.data)
@@ -236,7 +258,6 @@ class Trainer():
                 total_correct += pred.eq(targets.data).sum().item()
                 total_pred_aug_correct += (pred_aug1.eq(pred.data).sum().item() + pred_aug2.eq(pred.data).sum().item()) / 2
                 total_aug_correct += (pred_aug1.eq(targets.data).sum().item() + pred_aug2.eq(targets.data).sum().item()) / 2
-
                 acc1, acc5 = accuracy(logits_clean, targets, topk=(1, 5))
 
             loss.backward()
@@ -266,16 +287,20 @@ class Trainer():
                 if self.wandb_logger is not None:
                     self.wandb_logger.after_train_iter(self.wandb_input)
 
-        wandb_features['train/ce_loss'] = total_ce_loss / len(data_loader.dataset)
-        wandb_features['train/additional_loss'] = total_additional_loss / len(data_loader.dataset)
-        wandb_features['train/total_same_instance_loss'] = total_same_instance_loss / len(data_loader.dataset)
-        wandb_features['train/total_same_class_loss'] = total_same_class_loss / len(data_loader.dataset)
-        wandb_features['train/total_diff_class_loss'] = total_diff_class_loss / len(data_loader.dataset)
-        wandb_features['train/triplet_loss'] = total_triplet_loss / len(data_loader.dataset)
-        wandb_features['train/loss'] = (total_ce_loss + total_additional_loss) / len(data_loader.dataset)
+        denom = len(data_loader.dataset) / self.args.batch_size
+        wandb_features['train/ce_loss'] = total_ce_loss / denom
+        wandb_features['train/additional_loss'] = total_additional_loss / denom
+        wandb_features['train/total_same_instance_loss'] = total_same_instance_loss / denom
+        wandb_features['train/total_same_class_loss'] = total_same_class_loss / denom
+        wandb_features['train/total_diff_class_loss'] = total_diff_class_loss / denom
+        wandb_features['train/triplet_loss'] = total_triplet_loss / denom
+        wandb_features['train/loss'] = (total_ce_loss + total_additional_loss) / denom
         wandb_features['train/error'] = 100 - 100. * total_correct / len(data_loader.dataset)
         wandb_features['train/aug_error'] = 100 - 100. * total_aug_correct / len(data_loader.dataset)
         wandb_features['train/pred_aug_error'] = 100 - 100. * total_pred_aug_correct / len(data_loader.dataset)
+        wandb_features['train/jsd_matrix'] = feature['jsd_matrix']
+        wandb_features['train/p_clean'] = feature['p_clean']
+        wandb_features['train/p_aug1'] = feature['p_aug1']
 
         return loss_ema, wandb_features  # acc1_ema, batch_ema
 
