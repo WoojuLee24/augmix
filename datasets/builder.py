@@ -4,6 +4,7 @@ from torchvision import transforms
 from torchvision import datasets
 
 from .mixdataset import BaseDataset, AugMixDataset
+from .mixdataset_v2 import AugMixDataset_v2_0
 from .pixmix import RandomImages300K, PixMixDataset
 
 
@@ -62,6 +63,10 @@ def build_dataset(args, corrupted=False):
         elif aug == 'augmix':
             train_dataset = AugMixDataset(train_dataset, preprocess, no_jsd,
                                           args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity, args.mixture_coefficient)
+        elif aug == 'augmix_v2.0':
+            train_dataset = AugMixDataset_v2_0(train_dataset, preprocess, no_jsd,
+                                          args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+                                          args.mixture_alpha, args.mixture_beta, args.mixture_fix)
         elif aug == 'pixmix':
             if args.use_300k:
                 mixing_set = RandomImages300K(file='300K_random_images.npy', transform=transforms.Compose(
