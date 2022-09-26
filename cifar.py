@@ -50,7 +50,7 @@ def get_args_from_parser():
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',
-                        choices=['none', 'augmix', 'pixmix', 'apr'],
+                        choices=['none', 'augmix', 'pixmix', 'apr', 'augmix_v2.0'],
                         help='Choose domain generalization augmentation methods')
     ## AugMix options
     parser.add_argument('--mixture-width', default=3, type=int,
@@ -59,12 +59,21 @@ def get_args_from_parser():
                         help='Depth of augmentation chains. -1 denotes stochastic depth in [1, 3]')
     parser.add_argument('--aug-severity', default=3, type=int, help='Severity of base augmentation operators')
     parser.add_argument('--mixture-coefficient', '-mc', default=1.0, type=float, help='mixture coefficient alpha')
+    parser.add_argument('--mixture-alpha', '-ma', default=1.0, type=float, help='mixture coefficient alpha')
+    parser.add_argument('--mixture-beta', '-mb', default=1.0, type=float, help='mixture coefficient beta')
+    parser.add_argument('--mixture-fix', '-mf', action='store_true', help='mixture coefficient fix: use mixture-alpha as coefficient')
+
     parser.add_argument('--no-jsd', '-nj', action='store_true', help='Turn off JSD consistency loss.')
     parser.add_argument('--additional-loss', '-al',
                         default='jsd',
                         type=str,
-                        choices=['none', 'jsd', 'jsd_temper', 'jsdv3', 'jsdv3.01', 'jsdv3.02', 'kl',
-                                 'supconv0.01',
+                        choices=['none', 'jsd', 'jsd_temper',
+                                 'jsdv2', 'jsdv2.1',
+                                 'jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
+                                 'jsdv3.1', 'jsdv3.1.1'
+                                 'jsdv3.ntxent', 'jsdv3.ntxent.diff',
+                                 'kl',
+                                 'supconv0.01', 'supconv0.01_test', 'supconv0.01.diff',
                                  'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1'],
                         help='Type of additional loss')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
@@ -98,7 +107,7 @@ def get_args_from_parser():
     # Optimization options
     parser.add_argument('--epochs', '-e', type=int, default=100, help='Number of epochs to train.')
     parser.add_argument('--learning-rate', '-lr', type=float, default=0.1, help='Initial learning rate.')
-    parser.add_argument('--batch-size', '-b', type=int, default=128, help='Batch size.')
+    parser.add_argument('--batch-size', '-b', type=int, default=512, help='Batch size.')
     parser.add_argument('--eval-batch-size', type=int, default=1000)
     parser.add_argument('--momentum', type=float, default=0.9, help='Momentum.')
     parser.add_argument('--decay', '-wd', type=float, default=0.0005, help='Weight decay (L2 penalty).')
@@ -117,6 +126,7 @@ def get_args_from_parser():
     parser.add_argument('--log-freq', type=int, default=100, help='Training log frequency (batches) in wandb.')
     parser.add_argument('--wandb', '-wb', action='store_true', help='Turn on wandb log')
     parser.add_argument('--confusion-matrix', '-cm', action='store_true', help='Turn on wandb log')
+    parser.add_argument('--debug', action='store_true', help='Debugging')
 
     args = parser.parse_args()
 
@@ -263,8 +273,10 @@ def main():
             wandb_logger.before_train_epoch() # wandb here
             begin_time = time.time()
             # train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
-            if args.additional_loss in ['jsdv3', 'jsdv3.01', 'jsdv3.02']:
-                train_loss_ema, train_features = trainer.train3(train_loader)
+            if args.additional_loss in ['jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
+                                        'jsdv3.1', 'jsdv3.1.1',
+                                        'jsdv3.ntxent', 'jsdv3.ntxent.diff']:
+                train_loss_ema, train_features = trainer.train3(train_loader, epoch)
             else:
                 train_loss_ema, train_features = trainer.train(train_loader)
             # train_loss_ema, train_features = trainer.train(train_loader)
