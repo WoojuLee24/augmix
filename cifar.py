@@ -50,7 +50,7 @@ def get_args_from_parser():
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',
-                        choices=['none', 'augmix', 'pixmix', 'apr', 'augmix_v2.0'],
+                        choices=['none', 'augmix', 'pixmix', 'augmix_v2.0', 'apr_s'],
                         help='Choose domain generalization augmentation methods')
     ## AugMix options
     parser.add_argument('--mixture-width', default=3, type=int,
@@ -92,6 +92,9 @@ def get_args_from_parser():
     parser.add_argument('--k', default=4, type=int, help='Mixing iterations')
     parser.add_argument('--mixing-set', type=str, default='/ws/data/fractals_and_fvis/', help='Mixing set directory.')
     parser.add_argument('--use_300k', action='store_true', help='use 300K random images as aug data')
+
+    ## APR options
+    parser.add_argument('--apr_p', action='store_true', help='recommend to do apr_p when using apr-s' )
 
     # Model
     parser.add_argument('--model', '-m',
@@ -266,7 +269,7 @@ def main():
             f.write('epoch,time(s),train_loss,test_loss,test_error(%)\n')
 
         ### Trainer ###
-        trainer = Trainer(net, args, optimizer, scheduler, wandb_logger=wandb_logger, additional_loss=additional_loss)
+        trainer = Trainer(net, args, optimizer, scheduler, args.apr_p, wandb_logger=wandb_logger, additional_loss=additional_loss)
         best_acc = 0
         print('Beginning training from epoch:', start_epoch + 1)
         for epoch in range(start_epoch, args.epochs):

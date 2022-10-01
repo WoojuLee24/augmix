@@ -6,7 +6,7 @@ from torchvision import datasets
 from .mixdataset import BaseDataset, AugMixDataset
 from .mixdataset_v2 import AugMixDataset_v2_0
 from .pixmix import RandomImages300K, PixMixDataset
-
+from .APR import AprS
 
 def build_dataset(args, corrupted=False):
     dataset = args.dataset
@@ -39,6 +39,7 @@ def build_dataset(args, corrupted=False):
     else:
         if dataset == 'cifar10':
             train_dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            train_dataset_apr = datasets.CIFAR10(root_dir, train=True, download=True)
             test_dataset = datasets.CIFAR10(root_dir, train=False, transform=test_transform, download=True)
             base_c_path = f'{root_dir}/CIFAR-10-C/'
             num_classes = 10
@@ -80,8 +81,8 @@ def build_dataset(args, corrupted=False):
             normalize = transforms.Normalize([0.5] * 3, [0.5] * 3)
             train_dataset = PixMixDataset(train_dataset, mixing_set, {'normalize': normalize, 'tensorize': to_tensor},
                                           no_jsd=no_jsd, k=args.k, beta=args.beta, all_ops=args.all_ops, aug_severity=args.aug_severity)
-        elif args.aug == 'arp':
-            pass
+        elif aug == 'apr_s':
+            train_dataset = AprS(train_dataset_apr, args.apr_p, no_jsd)
 
         return train_dataset, test_dataset, num_classes, base_c_path
 

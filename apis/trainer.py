@@ -3,8 +3,9 @@ import torch.nn.functional as F
 import time
 import os
 
+from torchvision import transforms
 from losses import get_additional_loss, CenterLoss
-
+from datasets.APR import mix_data
 
 def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for the specified values of k."""
@@ -24,7 +25,7 @@ def accuracy(output, target, topk=(1,)):
 
 
 class Trainer():
-    def __init__(self, net, args, optimizer, scheduler, wandb_logger=None, device='cuda', additional_loss=None):
+    def __init__(self, net, args, optimizer, scheduler, apr_p, wandb_logger=None, device='cuda', additional_loss=None):
         self.net = net
         self.args = args
         self.optimizer = optimizer
@@ -34,6 +35,8 @@ class Trainer():
         self.wandb_input = dict()
         self.device = device
         self.additional_loss = additional_loss
+
+        self.apr_p = apr_p
 
     def __call__(self, data_loader):
         if self.args.additional_loss in ['center_loss', 'mlpjsd']:
@@ -322,6 +325,13 @@ class Trainer():
 
             if self.args.no_jsd or self.args.aug == 'none':
                 images, targets = images.to(self.device), targets.to(self.device)
+                if self.apr_p == 1:
+                    inputs_mix = mix_data(images)
+                    inputs, inputs_mix = transforms.Normalize([0.5] * 3, [0.5] * 3)(images), transforms.Normalize([0.5] * 3, [0.5] * 3)(inputs_mix)
+                    abc = torch.eq(inputs, inputs_mix)
+                    images = torch.cat([inputs, inputs_mix], dim=0)
+                    targets = torch.cat([targets, targets], dim=0)
+
                 logits = self.net(images)
                 self.wandb_input = self.net.get_wandb_input()
 
