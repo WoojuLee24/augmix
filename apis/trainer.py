@@ -213,6 +213,12 @@ class Trainer():
                 acc1, acc5 = accuracy(logits, targets, topk=(1, 5))
 
             else:
+                if self.apr_p == 1:
+                    inputs_mix1 = mix_data(images[1])
+                    inputs_mix2 = mix_data(images[2])
+                    inputs_mixx1, inputs_mixx2 = transforms.Normalize([0.5] * 3, [0.5] * 3)(inputs_mix1), transforms.Normalize([0.5] * 3, [0.5] * 3)(inputs_mix2)
+                    images = (images[0], inputs_mixx1, inputs_mixx2)
+
                 images_all = torch.cat(images, 0).to(self.device)
                 targets = targets.to(self.device)
 
@@ -322,13 +328,11 @@ class Trainer():
             if self.wandb_logger is not None:
                 self.wandb_logger.before_train_iter()
             self.net.module.hook_features.clear()
-
             if self.args.no_jsd or self.args.aug == 'none':
                 images, targets = images.to(self.device), targets.to(self.device)
                 if self.apr_p == 1:
                     inputs_mix = mix_data(images)
                     inputs, inputs_mix = transforms.Normalize([0.5] * 3, [0.5] * 3)(images), transforms.Normalize([0.5] * 3, [0.5] * 3)(inputs_mix)
-                    abc = torch.eq(inputs, inputs_mix)
                     images = torch.cat([inputs, inputs_mix], dim=0)
                     targets = torch.cat([targets, targets], dim=0)
 
