@@ -6,6 +6,13 @@ import torch
 from torchvision import transforms
 import augmentations
 
+#when not using jsd, use options below
+#--aug apr_s     --apr_p     --additional-loss nojsd_apr_p   --no-jsd
+
+#when using jsd, use options below
+#--aug apr_s     --apr_p     --additional-loss jsdv3_apr_p
+
+
 def train_transforms():
     transforms_list = []
 
@@ -170,7 +177,7 @@ class AprS(torch.utils.data.Dataset):
 
 
 #apr-p
-def mix_data(x, use_cuda=True, prob=0.6):
+def mix_data(x, prob, use_cuda=True):
     '''Returns mixed inputs, pairs of targets, and lambda'''
 
     p = random.uniform(0, 1)

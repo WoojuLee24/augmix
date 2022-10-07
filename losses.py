@@ -79,6 +79,9 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         loss = supconv0_01_diff(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction)
     elif name == 'supconv0.02':
         loss = supconv0_02(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight,  temper, reduction)
+    elif name == 'jsdv3_apr_p':
+        loss, features = jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
+        return loss, features
 
     return loss
 

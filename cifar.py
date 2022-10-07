@@ -77,7 +77,9 @@ def get_args_from_parser():
                                  'jsdv3.ntxent', 'jsdv3.ntxent.diff',
                                  'kl',
                                  'supconv0.01', 'supconv0.01_test', 'supconv0.01.diff',
-                                 'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1'],
+                                 'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1', 'jsdv3_apr_p',
+                                 'nojsd_apr_p'
+                                 ],
                         help='Type of additional loss')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
     parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
@@ -98,6 +100,7 @@ def get_args_from_parser():
 
     ## APR options
     parser.add_argument('--apr_p', action='store_true', help='recommend to do apr_p when using apr-s' )
+    parser.add_argument('--apr_mixed_coefficient', default=0.6, type=float, help='probability of using apr-p')
 
     # Model
     parser.add_argument('--model', '-m',
@@ -272,7 +275,7 @@ def main():
             f.write('epoch,time(s),train_loss,test_loss,test_error(%)\n')
 
         ### Trainer ###
-        trainer = Trainer(net, args, optimizer, scheduler, args.apr_p, wandb_logger=wandb_logger, additional_loss=additional_loss)
+        trainer = Trainer(net, args, optimizer, scheduler, wandb_logger=wandb_logger, additional_loss=additional_loss)
         best_acc = 0
         print('Beginning training from epoch:', start_epoch + 1)
         for epoch in range(start_epoch, args.epochs):
@@ -287,6 +290,10 @@ def main():
                 train_loss_ema, train_features = trainer.train3(train_loader, epoch)
             elif args.additional_loss in ['jsdv3.simsiam', 'jsdv3.simsiamv0.1']:
                 train_loss_ema, train_features = trainer.train3_simsiam(train_loader, epoch)
+            elif args.additional_loss == 'jsdv3_apr_p':
+                train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
+            elif args.additional_loss == 'nojsd_apr_p':
+                train_loss_ema, train_features = trainer.train_apr_p(train_loader)
             else:
                 train_loss_ema, train_features = trainer.train(train_loader)
             # train_loss_ema, train_features = trainer.train(train_loader)

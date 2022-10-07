@@ -11,7 +11,7 @@ def aug_v2_0(image, preprocess, all_ops, mixture_width, mixture_depth, aug_sever
       image: PIL.Image input image
       preprocess: Preprocessing function which should return a torch tensor.
 
-    Returns:
+    Returns
       mixed: Augmented and mixed image.
     """
     aug_list = augmentations.augmentations
