@@ -11,12 +11,23 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         loss = 0
     elif name == 'jsd':
         loss = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight)
+    elif name == 'jsdv1':
+        loss = jsdv1(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsdv2':
         loss = jsdv2(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'jsdv2.1':
         loss = jsdv2_1(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'jsdv3':
         loss, features = jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
+        return loss, features
+    elif name == 'jsdv3.cossim':
+        loss, features = jsdv3_cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
+        return loss, features
+    elif name == 'jsdv3.simsiam':
+        loss, features = jsdv3_simsiam(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
+        return loss, features
+    elif name == 'jsdv3.simsiamv0.1':
+        loss, features = jsdv3_simsiamv0_1(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
     elif name == 'jsdv3.0.1':
         margin = args.margin
@@ -26,13 +37,11 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         margin = args.margin
         loss, features = jsdv3_0_2(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
         return loss, features
-    elif name == 'jsdv3.1':
-        margin = args.margin
-        loss, features = jsdv3_1(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+    elif name == 'jsdv3.log.inv':
+        loss, features = jsdv3_log_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
-    elif name == 'jsdv3.1.1':
-        margin = args.margin
-        loss, features = jsdv3_1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+    elif name == 'jsdv3.inv':
+        loss, features = jsdv3_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
     elif name == 'jsdv3.0.3':
         margin = args.margin
@@ -86,6 +95,19 @@ def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
 
     return loss
 
+
+def jsdv1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean, dim=1),\
+                              F.softmax(logits_aug1, dim=1), \
+                              F.softmax(logits_aug2, dim=1)
+
+    # No clamp mixture distribution
+    p_mixture = ((p_clean + p_aug1 + p_aug2) / 3).log()
+    loss = lambda_weight * (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                            F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                            F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+    return loss
 
 def jsdv2(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1):
     '''
@@ -209,8 +231,208 @@ def jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, 
 
     # jsd_debug = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=lambda_weight)
 
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                'jsd_matrix': jsd_matrix,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
+                }
 
-    triplet_loss = 0
+    return loss, features
+
+
+def jsdv3_cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None):
+    '''
+    JSD matrix loss
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    similarity = (F.cosine_similarity(logits_clean, logits_aug1) +
+                  F.cosine_similarity(logits_clean, logits_aug2) +
+                  F.cosine_similarity(logits_aug1, logits_aug2)) / 3
+    similarity = similarity.mean()
+
+    jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
+
+    # jsd_distance2 = lambda_weight * jsd_distance
+    # jsd_value = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=lambda_weight)
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
+
+    loss = -1 * lambda_weight * similarity
+
+    # jsd_debug = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=lambda_weight)
+
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                'jsd_matrix': jsd_matrix,
+                'similarity': similarity,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                }
+
+    return loss, features
+
+
+def jsdv3_simsiam(orig, aug1, aug2, lambda_weight=12, temper=1.0, targets=None):
+    '''
+    JSD matrix loss
+    simsiam_v1.0
+    similarity loss and jsd losgging
+    '''
+
+    logits_clean, z_clean = orig
+    logits_aug1, z_aug1 = aug1
+    logits_aug2, z_aug2 = aug2
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    similarity = (F.cosine_similarity(logits_clean, z_aug1) +
+                  F.cosine_similarity(logits_clean, z_aug2) +
+                  F.cosine_similarity(logits_aug1, z_clean) +
+                  F.cosine_similarity(logits_aug1, z_aug2) +
+                  F.cosine_similarity(logits_aug2, z_clean) +
+                  F.cosine_similarity(logits_aug2, z_aug1)) / 6
+
+    similarity = similarity.mean()
+
+    jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
+
+    loss = -1 * lambda_weight * similarity
+
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                'jsd_matrix': jsd_matrix,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                }
+
+    return loss, features
+
+
+def jsdv3_simsiamv0_1(orig, aug1, aug2, lambda_weight=12, temper=1.0, targets=None):
+    '''
+    JSD matrix loss
+    simsiam_v1.0
+    jsdv3 loss and jsd losgging
+    '''
+
+    logits_clean, z_clean = orig
+    logits_aug1, z_aug1 = aug1
+    logits_aug2, z_aug2 = aug2
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+    z_clean, z_aug1, z_aug2 = F.softmax(z_clean / temper, dim=1), \
+                              F.softmax(z_aug1 / temper, dim=1), \
+                              F.softmax(z_aug2 / temper, dim=1)
+
+
+    jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
+    jsd_matrix2 = get_jsd_matrix(p_clean, z_aug1, z_aug2)
+    jsd_matrix3 = get_jsd_matrix(p_aug1, z_aug2, z_clean)
+    jsd_matrix4 = get_jsd_matrix(p_aug2, z_clean, z_aug1)
+
+    jsd_matrix_same_instance2 = jsd_matrix2 * mask_same_instance
+    jsd_distance2 = jsd_matrix_same_instance2.sum() / mask_same_instance.sum()
+
+    jsd_matrix_same_instance3 = jsd_matrix3 * mask_same_instance
+    jsd_distance3 = jsd_matrix_same_instance3.sum() / mask_same_instance.sum()
+
+    jsd_matrix_same_instance4 = jsd_matrix4 * mask_same_instance
+    jsd_distance4 = jsd_matrix_same_instance4.sum() / mask_same_instance.sum()
+
+    jsd_distance_sum = (jsd_distance2 + jsd_distance3 + jsd_distance4) / 3
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
+
+    loss = lambda_weight * jsd_distance_sum
+
+    triplet_loss = jsd_distance_sum
 
     features = {'jsd_distance': jsd_distance,
                 'jsd_distance_diff_class': jsd_distance_diff_class,
@@ -222,6 +444,7 @@ def jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, 
                 }
 
     return loss, features
+
 
 
 def jsdv3_0_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
@@ -469,7 +692,7 @@ def jsdv3_0_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1
     return loss, features
 
 
-def jsdv3_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None):
+def jsdv3_log_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None):
     '''
     JSD matrix loss. Augmix original version
     log JSD matrix and JSD matrix_inv
@@ -517,7 +740,6 @@ def jsdv3_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0
     jsd_distance_same_class_inv = jsd_matrix_same_class_inv.sum() / mask_same_triuu.sum()
 
     loss = lambda_weight * jsd_distance
-    triplet_loss = 0
 
     features = {'jsd_distance': jsd_distance,
                 'jsd_distance_inv': jsd_distance_inv,
@@ -525,23 +747,22 @@ def jsdv3_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0
                 'jsd_distance_diff_class_inv': jsd_distance_diff_class_inv,
                 'jsd_distance_same_class': jsd_distance_same_class,
                 'jsd_distance_same_class_inv': jsd_distance_same_class_inv,
-                'triplet_loss': triplet_loss,
                 'jsd_matrix': jsd_matrix,
                 'p_clean': p_clean,
                 'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
                 }
 
     return loss, features
 
 
-def jsdv3_1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None):
+def jsdv3_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None):
     '''
     JSD matrix loss.
 
     log JSD matrix and JSD matrix_inv
-    edited from jsdv3_1
-
-    optimize max(JSD(p, m), JSD(m, p))
+    edited from jsdv3_log_inv
+    optimize JSD inversion
     '''
 
     device = logits_clean.device
@@ -571,7 +792,6 @@ def jsdv3_1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1
     jsd_matrix_same_instance_inv = jsd_matrix_inv * mask_same_instance
     jsd_distance_inv = jsd_matrix_same_instance_inv.sum() / mask_same_instance.sum()
 
-
     mask_diff_triuu = mask_diff_class * mask_triuu
     jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
     jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum()
@@ -584,8 +804,7 @@ def jsdv3_1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1
     jsd_matrix_same_class_inv = jsd_matrix_inv * mask_same_triuu
     jsd_distance_same_class_inv = jsd_matrix_same_class_inv.sum() / mask_same_triuu.sum()
 
-    loss = lambda_weight * jsd_distance
-    triplet_loss = 0
+    loss = lambda_weight * jsd_distance_inv
 
     features = {'jsd_distance': jsd_distance,
                 'jsd_distance_inv': jsd_distance_inv,
@@ -593,10 +812,10 @@ def jsdv3_1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1
                 'jsd_distance_diff_class_inv': jsd_distance_diff_class_inv,
                 'jsd_distance_same_class': jsd_distance_same_class,
                 'jsd_distance_same_class_inv': jsd_distance_same_class_inv,
-                'triplet_loss': triplet_loss,
                 'jsd_matrix': jsd_matrix,
                 'p_clean': p_clean,
                 'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
                 }
 
     return loss, features

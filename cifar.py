@@ -68,9 +68,12 @@ def get_args_from_parser():
                         default='jsd',
                         type=str,
                         choices=['none', 'jsd', 'jsd_temper',
+                                 'jsdv1',
                                  'jsdv2', 'jsdv2.1',
                                  'jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
-                                 'jsdv3.1', 'jsdv3.1.1'
+                                 'jsdv3.1', 'jsdv3.1.1',
+                                 'jsdv3.log.inv', 'jsdv3.inv',
+                                 'jsdv3.cossim', 'jsdv3.simsiam', 'jsdv3.simsiamv0.1',
                                  'jsdv3.ntxent', 'jsdv3.ntxent.diff',
                                  'kl',
                                  'supconv0.01', 'supconv0.01_test', 'supconv0.01.diff',
@@ -97,7 +100,7 @@ def get_args_from_parser():
     parser.add_argument('--model', '-m',
                         type=str,
                         default='wrn',
-                        choices=['wrn', 'wrnproj', 'allconv', 'densenet', 'resnext'],
+                        choices=['wrn', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext'],
                         help='Choose architecture.')
     ## WRN Architecture options
     parser.add_argument('--layers', default=40, type=int, help='total number of layers')
@@ -274,9 +277,13 @@ def main():
             begin_time = time.time()
             # train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
             if args.additional_loss in ['jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
-                                        'jsdv3.1', 'jsdv3.1.1',
-                                        'jsdv3.ntxent', 'jsdv3.ntxent.diff']:
+                                        'jsdv3.cossim', 'jsdv3.ntxent', 'jsdv3.ntxent.diff',
+                                        'jsdv3.log.inv', 'jsdv3.inv',
+
+                                        ]:
                 train_loss_ema, train_features = trainer.train3(train_loader, epoch)
+            elif args.additional_loss in ['jsdv3.simsiam', 'jsdv3.simsiamv0.1']:
+                train_loss_ema, train_features = trainer.train3_simsiam(train_loader, epoch)
             else:
                 train_loss_ema, train_features = trainer.train(train_loader)
             # train_loss_ema, train_features = trainer.train(train_loader)

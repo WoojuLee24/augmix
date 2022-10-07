@@ -140,14 +140,6 @@ class WideResNet(nn.Module):
             from utils.visualize import plot_tsne, multi_plot_tsne
             targets_all = torch.cat((targets, targets, targets), 0)
 
-            # plt, fig = plot_tsne(self.features, targets=targets_all, title='features')
-            # self.wandb_input['tsne_features'] = fig
-            # plt.close(fig)
-            #
-            # plt, fig = plot_tsne(logits, targets=targets_all, title='logits')
-            # self.wandb_input['tsne_logits'] = fig
-            # plt.close(fig)
-
             input_list = [self.features, logits]
             targets_list = [targets_all, targets_all]
             title_list = ['features', 'logits']
