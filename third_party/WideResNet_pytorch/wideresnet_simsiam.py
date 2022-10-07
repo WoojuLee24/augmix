@@ -78,11 +78,11 @@ class NetworkBlock(nn.Module):
     return self.layer(x)
 
 
-class WideResNet(nn.Module):
-    """WideResNet class."""
+class WideResNetSimsiam(nn.Module):
+    """WideResNet simsiam class."""
 
-    def __init__(self, depth, num_classes, widen_factor=1, drop_rate=0.0):
-        super(WideResNet, self).__init__()
+    def __init__(self, depth, num_classes, widen_factor=1, drop_rate=0.0, dim=10):
+        super(WideResNetSimsiam, self).__init__()
         self.hook_features = dict()
         n_channels = [16, 16 * widen_factor, 32 * widen_factor, 64 * widen_factor]
         assert (depth - 4) % 6 == 0
@@ -106,6 +106,21 @@ class WideResNet(nn.Module):
         self.fc = nn.Linear(n_channels[3], num_classes)
         # self.fc1 = nn.Linear(n_channels[3], 2)
         # self.fc2 = nn.Linear(2, num_classes)
+
+        prev_dim = n_channels[3]
+        self.fc1 = nn.Sequential(nn.Linear(prev_dim, prev_dim, bias=False),
+                                 nn.BatchNorm1d(prev_dim),
+                                 nn.ReLU(inplace=True),  # first layer
+                                 nn.Linear(prev_dim, prev_dim, bias=False),
+                                 nn.BatchNorm1d(prev_dim),
+                                 nn.ReLU(inplace=True),  # second layer
+                                 nn.Linear(prev_dim, dim, bias=False),
+                                 nn.BatchNorm1d(dim, affine=False))  # output layer
+        self.fc2 = nn.Sequential(nn.Linear(dim, dim, bias=False),
+                                 nn.BatchNorm1d(dim),
+                                 nn.ReLU(inplace=True), # hidden layer
+                                 nn.Linear(dim, num_classes)) # ouput layer
+
         self.n_channels = n_channels[3]
 
         for m in self.modules():
@@ -116,7 +131,8 @@ class WideResNet(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
-                m.bias.data.zero_()
+                if m.bias is not None:
+                    m.bias.data.zero_()
         self.wandb_input = dict()
 
     def extract_features(self, x):
@@ -131,23 +147,23 @@ class WideResNet(nn.Module):
         return out
 
     def forward(self, x, targets=None):
-        self.features = self.extract_features(x)
-        logits = self.fc(self.features)
-        # self.features = self.fc1(self.extract_features(x))
-        # logits = self.fc2(self.features)
+        x_orig, x_aug1, x_aug2 = torch.chunk(x, 3)
+        f_orig = self.extract_features(x_orig)
+        f_aug1 = self.extract_features(x_aug1)
+        f_aug2 = self.extract_features(x_aug2)
 
-        if targets is not None:
-            from utils.visualize import plot_tsne, multi_plot_tsne
-            targets_all = torch.cat((targets, targets, targets), 0)
+        z_orig = self.fc1(f_orig)
+        z_aug1 = self.fc1(f_aug1)
+        z_aug2 = self.fc1(f_aug2)
 
-            input_list = [self.features, logits]
-            targets_list = [targets_all, targets_all]
-            title_list = ['features', 'logits']
-            plt, fig = multi_plot_tsne(input_list, targets_list, title_list, rows=1, cols=2,
-                                       # perplexity=50, n_iter=300)
-                                       perplexity=30, n_iter=300)
-            self.wandb_input['tsne'] = fig
-            plt.close(fig)
+        p_orig = self.fc2(z_orig)
+        p_aug1 = self.fc2(z_aug1)
+        p_aug2 = self.fc2(z_aug2)
 
-        return logits
+        orig = (p_orig, z_orig)
+        aug1 = (p_aug1, z_aug1)
+        aug2 = (p_aug2, z_aug2)
+
+        return orig, aug1, aug2
+
 
