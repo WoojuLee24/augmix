@@ -107,6 +107,9 @@ class WandbLogger():
             if 'test_features' in wandb_input:
                 for key, value in wandb_input['test_features'].items():
                     self.wandb.log({key: value})
+            if 'test_c_features' in wandb_input:
+                for key, value in wandb_input['test_c_features'].items():
+                    self.wandb.log({key: value})
             if 'test_cm' in wandb_input:
                 test_plt = plot_confusion_matrix(wandb_input['test_cm'])
                 self.wandb.log({'clean': test_plt})

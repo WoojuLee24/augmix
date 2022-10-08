@@ -71,6 +71,7 @@ def get_args_from_parser():
                                  'jsdv1',
                                  'jsdv2', 'jsdv2.1',
                                  'jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
+                                 'jsdv3.test',
                                  'jsdv3.1', 'jsdv3.1.1',
                                  'jsdv3.log.inv', 'jsdv3.inv',
                                  'jsdv3.cossim', 'jsdv3.simsiam', 'jsdv3.simsiamv0.1',
@@ -246,10 +247,14 @@ def main():
     ### ELIF: Analysis mode ###
     ###########################
     elif args.analysis:
-        test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
+
+        test_c_acc, test_c_table, test_c_cm, test_c_features = tester.test_c_v2(test_dataset, base_c_path) # analyzie jsd distance of corrupted data
+        # test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)    # plot t-sne features
+        print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
         wandb_logger.log_evaluate(dict(test_c_table=test_c_table,
                                        test_c_acc=test_c_acc,
                                        test_c_cm=test_c_cm,
+                                       test_c_features=test_c_features
                                        ))
         return
     ########################
@@ -285,7 +290,6 @@ def main():
             if args.additional_loss in ['jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
                                         'jsdv3.cossim', 'jsdv3.ntxent', 'jsdv3.ntxent.diff',
                                         'jsdv3.log.inv', 'jsdv3.inv',
-
                                         ]:
                 train_loss_ema, train_features = trainer.train3(train_loader, epoch)
             elif args.additional_loss in ['jsdv3.simsiam', 'jsdv3.simsiamv0.1']:
