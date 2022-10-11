@@ -168,7 +168,7 @@ def main():
         name = save_path.split("/")[-1]
 
     if args.wandb:
-        wandg_config = dict(project='AI28', entity='kaist-url-ai28', name=name)
+        wandg_config = dict(project="Classification", entity='kaist-url-ai28', name=name)
         wandb_logger = WandbLogger(wandg_config, args)
     else:
         wandb_logger = WandbLogger(None)
