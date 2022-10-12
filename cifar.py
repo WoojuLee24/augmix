@@ -79,7 +79,9 @@ def get_args_from_parser():
                                  'kl',
                                  'supconv0.01', 'supconv0.01_test', 'supconv0.01.diff',
                                  'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1', 'jsdv3_apr_p',
-                                 'nojsd_apr_p'
+                                 'nojsd_apr_p',
+                                 'klv1.0', 'klv1.1', 'klv1.2',
+                                 'klv1.0.detach', 'klv1.1.detach', 'klv1.2.detach',
                                  ],
                         help='Type of additional loss')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')

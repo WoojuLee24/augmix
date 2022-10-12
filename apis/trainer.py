@@ -693,7 +693,7 @@ class Trainer():
 
         return loss_ema, wandb_features  # acc1_ema, batch_ema
 
-def train(self, data_loader):
+    def train(self, data_loader):
         self.net.train()
         wandb_features = dict()
         total_ce_loss, total_additional_loss, total_correct, = 0., 0., 0.
