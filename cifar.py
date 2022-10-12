@@ -82,6 +82,7 @@ def get_args_from_parser():
                                  'nojsd_apr_p',
                                  'klv1.0', 'klv1.1', 'klv1.2',
                                  'klv1.0.detach', 'klv1.1.detach', 'klv1.2.detach',
+                                 'msev1.0',
                                  ],
                         help='Type of additional loss')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')

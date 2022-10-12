@@ -86,6 +86,7 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         loss, features = jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
 
+    # kl_div
     elif name == 'klv1.0':
         loss = kl_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'klv1.1':
@@ -98,6 +99,10 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         loss = kl_v1_1_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'klv1.2.detach':
         loss = kl_v1_2_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+
+    # mse
+    elif name == 'msev1.0':
+        loss = mse_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
 
     return loss
 
@@ -1307,6 +1312,19 @@ def kl_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
                             F.kl_div(p_aug2_log, p_clean, reduction='batchmean') +
                             F.kl_div(p_aug2_log, p_aug1, reduction='batchmean') +
                             F.kl_div(p_aug1_log, p_aug2, reduction='batchmean')) / 6.
+
+    return loss
+
+
+def mse_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
+
+    B, C = logits_clean.size()
+
+    loss = (F.mse_loss(logits_clean, logits_aug1, reduction='sum') +
+            F.mse_loss(logits_clean, logits_aug2, reduction='sum') +
+            F.mse_loss(logits_aug1, logits_aug2, reduction='sum')) / 3 / B
+
+    loss = lambda_weight * loss
 
     return loss
 
