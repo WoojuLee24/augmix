@@ -27,6 +27,9 @@ class WandbLogger():
                 'Please run "pip install wandb" to install wandb')
         self.wandb = wandb
 
+    def log(self, key, value):
+        self.wandb.log({key: value})
+
     ###########
     ### run ###
     ###########
