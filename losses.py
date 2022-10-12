@@ -103,6 +103,8 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     # mse
     elif name == 'msev1.0':
         loss = mse_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+    elif name == 'msev1.0.detach':
+        loss = mse_v1_0_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
 
     return loss
 
@@ -1317,9 +1319,22 @@ def kl_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
 
 
 def mse_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
-
+    # collapse with lw 12
     B, C = logits_clean.size()
 
+    loss = (F.mse_loss(logits_clean, logits_aug1, reduction='sum') +
+            F.mse_loss(logits_clean, logits_aug2, reduction='sum') +
+            F.mse_loss(logits_aug1, logits_aug2, reduction='sum')) / 3 / B
+
+    loss = lambda_weight * loss
+
+    return loss
+
+
+def mse_v1_0_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
+
+    B, C = logits_clean.size()
+    logits_clean = logits_clean.detach()
     loss = (F.mse_loss(logits_clean, logits_aug1, reduction='sum') +
             F.mse_loss(logits_clean, logits_aug2, reduction='sum') +
             F.mse_loss(logits_aug1, logits_aug2, reduction='sum')) / 3 / B
