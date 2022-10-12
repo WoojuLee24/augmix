@@ -191,12 +191,17 @@ def main():
 
         train(train_loader, net, criterion, optimizer, scheduler, epoch, args, wandb_logger)
 
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'arch': args.arch,
+        ### LOG ###
+        checkpoint = {
+            'epoch': epoch,
+            'dataset': args.dataset,
+            'model': args.model,
             'state_dict': net.state_dict(),
             'optimizer': optimizer.state_dict(),
-        }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
+        }
+
+        save_path = os.path.join(args.save, 'checkpoint.pth.tar')
+        torch.save(checkpoint, save_path)
 
 
 def train(train_loader, model, criterion, optimizer, scheduler, epoch, args, wandb_logger):
