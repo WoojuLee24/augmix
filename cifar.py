@@ -67,7 +67,7 @@ def get_args_from_parser():
     parser.add_argument('--additional-loss', '-al',
                         default='jsd',
                         type=str,
-                        choices=['none', 'jsd', 'jsd_temper',
+                        choices=['none', 'jsd', 'jsd.manual', 'jsd_temper',
                                  'jsdv1',
                                  'jsdv2', 'jsdv2.1',
                                  'jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
