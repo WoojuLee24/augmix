@@ -1,5 +1,5 @@
 from .parallel import *
-from .builder import build_net, build_loss, get_lr
+from .builder import build_net, build_loss, get_lr, build_projnet
 from .additional_loss import AdditionalLoss
 from .allconv import AllConvNet
 __all__ = [

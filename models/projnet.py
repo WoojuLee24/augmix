@@ -118,9 +118,9 @@ def get_dim(net, layer, flattened=True):
     on your terminal
 '''
 from third_party.WideResNet_pytorch.wideresnet import WideResNet
-def projNetv1(pred_dim,
-              args,
-              hidden_dim=2048,
+def projNetv1(args,
+              pred_dim,
+              # hidden_dim=2048,
               ):
     ''' WideResNet:
         ...
@@ -132,7 +132,7 @@ def projNetv1(pred_dim,
         fc
     '''
     encoder = WideResNet(depth=args.layers,
-                         num_classes=hidden_dim,
+                         num_classes=args.hidden_dim,
                          widen_factor=args.widen_factor,
                          drop_rate=args.droprate)
     prev_dim = get_dim(encoder, 'fc', flattened=True)[-1]
@@ -144,10 +144,10 @@ def projNetv1(pred_dim,
                               nn.BatchNorm1d(prev_dim),
                               nn.ReLU(inplace=True),
                               encoder.fc,
-                              nn.BatchNorm1d(hidden_dim, affine=False),
+                              nn.BatchNorm1d(args.hidden_dim, affine=False),
                               )
 
-    predictor = nn.Sequential(nn.Linear(hidden_dim, pred_dim, bias=False),
+    predictor = nn.Sequential(nn.Linear(args.hidden_dim, pred_dim, bias=False),
                               nn.BatchNorm1d(pred_dim),
                               nn.ReLU(inplace=True),
                               nn.Linear(pred_dim, pred_dim))

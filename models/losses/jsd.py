@@ -12,5 +12,9 @@ def jsd(logits_clean, logits_aug1, logits_aug2):
     loss = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
             F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
             F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+    features = {'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
+                }
 
-    return loss
+    return loss, features

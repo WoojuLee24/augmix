@@ -15,6 +15,8 @@ from third_party.WideResNet_pytorch.wideresnetproj import WideResNetProj
 from third_party.supervised_contrastive_net import SupConNet
 from third_party.WideResNet_pytorch.wideresnet_encoder import WideResNetEncoder
 
+from models.projnet import projNetv1
+
 def build_net(args, num_classes):
     if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
         if args.model == 'densenet':
@@ -51,6 +53,29 @@ def build_net(args, num_classes):
     cudnn.benchmark = True
 
     return net
+
+
+
+def build_projnet(args, num_classes):
+    if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
+        if args.model == 'projnetv1':
+            net = projNetv1(args, num_classes)
+        else:
+            net = projNetv1(args, num_classes)
+    else: # imagenet
+        if args.pretrained:
+            print("=> using pre-trained model '{}'".format(args.model))
+            net = models.__dict__[args.model](pretrained=True)
+        else:
+            print("=> creating model '{}'".format(args.model))
+            net = models.__dict__[args.model]()
+
+    net = MyDataParallel(net)
+    net = net.cuda()
+    cudnn.benchmark = True
+
+    return net
+
 
 def get_lr(step, total_steps, lr_max, lr_min):
     """Compute learning rate according to cosine annealing schedule."""
