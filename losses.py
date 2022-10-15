@@ -13,6 +13,8 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         loss = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsd.manual':
         loss = jsd_manual(logits_clean, logits_aug1, logits_aug2, lambda_weight)
+    elif name == 'jsd.manual.ce':
+        loss = jsd_manual_ce(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsdv1':
         loss = jsdv1(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsdv2':
@@ -138,12 +140,21 @@ def jsd_manual(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
     B, C = logits_clean.size()
     loss = ((p_clean * p_clean.log() - p_clean * p_mixture) + (p_aug1 * p_aug1.log() - p_aug1 * p_mixture) + (p_aug2 * p_aug2.log() - p_aug2 * p_mixture))
     loss = lambda_weight * loss.sum() / 3 / B
-    # loss = lambda_weight * (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
-    #                         F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
-    #                         F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
 
     return loss
 
+def jsd_manual_ce(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean, dim=1),\
+                              F.softmax(logits_aug1, dim=1), \
+                              F.softmax(logits_aug2, dim=1)
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+    B, C = logits_clean.size()
+    loss = ((- p_clean * p_mixture) + (- p_aug1 * p_mixture) + (- p_aug2 * p_mixture))
+    loss = lambda_weight * loss.sum() / 3 / B / C
+
+    return loss
 
 def jsdv1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
     p_clean, p_aug1, p_aug2 = F.softmax(logits_clean, dim=1),\
@@ -1183,19 +1194,6 @@ def jsd_distance(logit1, logit2, reduction='batchmean'):
     # Clamp mixture distribution to avoid exploding KL divergence
     p_mixture = torch.clamp((p1 + p2) / 2., 1e-7, 1).log()
     loss = (F.kl_div(p_mixture, p1, reduction=reduction) + F.kl_div(p_mixture, p2, reduction=reduction)) / 2.
-
-    return loss
-
-def jsd_temper(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=0.5, reduction='batchmean'):
-    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1),\
-                              F.softmax(logits_aug1 / temper, dim=1), \
-                              F.softmax(logits_aug2 / temper, dim=1)
-
-    # Clamp mixture distribution to avoid exploding KL divergence
-    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
-    loss = lambda_weight * (F.kl_div(p_mixture, p_clean, reduction=reduction) +
-                            F.kl_div(p_mixture, p_aug1, reduction=reduction) +
-                            F.kl_div(p_mixture, p_aug2, reduction=reduction)) / 3.
 
     return loss
 
