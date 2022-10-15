@@ -101,6 +101,10 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         loss = kl_v1_1_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'klv1.2.detach':
         loss = kl_v1_2_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+    elif name == 'klv1.1.inv':
+        loss = kl_v1_1_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+    elif name == 'klv1.2.inv':
+        loss = kl_v1_2_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
 
     # mse
     elif name == 'msev1.0':
@@ -1333,6 +1337,40 @@ def kl_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
                             F.kl_div(p_aug2_log, p_clean, reduction='batchmean') +
                             F.kl_div(p_aug2_log, p_aug1, reduction='batchmean') +
                             F.kl_div(p_aug1_log, p_aug2, reduction='batchmean')) / 6.
+
+    return loss
+
+
+def kl_v1_1_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    p_clean_log = torch.clamp(p_clean, 1e-7, 1).log()
+    p_aug1_log = torch.clamp(p_aug1, 1e-7, 1).log()
+    p_aug2_log = torch.clamp(p_aug2, 1e-7, 1).log()
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    loss = lambda_weight * (F.kl_div(p_clean_log, p_aug1, reduction='batchmean') +
+                            F.kl_div(p_clean_log, p_aug2, reduction='batchmean') +
+                            F.kl_div(p_aug2_log, p_aug1, reduction='batchmean') +
+                            F.kl_div(p_aug1_log, p_aug2, reduction='batchmean')) / 4.
+    return loss
+
+
+
+def kl_v1_2_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    p_clean_log = torch.clamp(p_clean, 1e-7, 1).log()
+    p_aug1_log = torch.clamp(p_aug1, 1e-7, 1).log()
+    p_aug2_log = torch.clamp(p_aug2, 1e-7, 1).log()
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    loss = lambda_weight * (F.kl_div(p_clean_log, p_aug1, reduction='batchmean') +
+                            F.kl_div(p_clean_log, p_aug2, reduction='batchmean')) / 2.
 
     return loss
 

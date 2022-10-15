@@ -82,6 +82,7 @@ def get_args_from_parser():
                                  'nojsd_apr_p',
                                  'klv1.0', 'klv1.1', 'klv1.2',
                                  'klv1.0.detach', 'klv1.1.detach', 'klv1.2.detach',
+                                 'klv1.0.inv', 'klv1.1.inv', 'klv1.2.inv',
                                  'msev1.0','msev1.0.detach',
                                  ],
                         help='Type of additional loss')
