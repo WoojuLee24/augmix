@@ -107,6 +107,9 @@ class WandbLogger():
     def log_evaluate(self, wandb_input):
         if self.use_wandb:
             # log wandb features
+            if 'train_features' in wandb_input:
+                for key, value in wandb_input['train_features'].items():
+                    self.wandb.log({key: value})
             if 'test_features' in wandb_input:
                 for key, value in wandb_input['test_features'].items():
                     self.wandb.log({key: value})
@@ -119,6 +122,8 @@ class WandbLogger():
             if 'test_c_table' in wandb_input:
                 test_c_table = self.wandb.Table(data=wandb_input['test_c_table'])
                 self.wandb.log({"test_c_results": test_c_table})
+            if 'test_c_error' in wandb_input:
+                self.wandb.log({"test/corruption_error: ": wandb_input['test_c_error']})
             if 'test_c_acc' in wandb_input:
                 self.wandb.log({"test/corruption_error: ": 100 - 100. * wandb_input['test_c_acc']})
             if 'test_c_cm' in wandb_input:

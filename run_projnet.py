@@ -221,6 +221,12 @@ def main():
                                                      base_path='/ws/data/cifar/CIFAR-10-C/')
         # print(f'Mean Corruption Error: {test_c_error}')
 
+        wandb_logger.log_evaluate(dict(test_features=test_features,
+                                       test_cm=test_cm,
+                                       test_c_table=test_c_table,
+                                       test_c_error=test_c_error,
+                                       test_c_cm=test_c_cm))
+
         return
 
     ###########################
@@ -241,6 +247,10 @@ def main():
         train_loss, train_acc, train_features = train(train_loader, net, criterion, optimizer, scheduler, epoch, args, wandb_logger)
         test_loss, test_acc, test_features, test_cm = test(test_loader, net, criterion_test, args, wandb_logger)
 
+        wandb_logger.log_evaluate(dict(train_features=train_features,
+                                       test_features=test_features,
+                                       test_cm=test_cm))
+
         ### LOG ###
         is_best = test_acc > best_acc
         best_acc = max(test_acc, best_acc)
@@ -258,10 +268,15 @@ def main():
         if is_best:
             shutil.copyfile(save_path, os.path.join(args.save, 'model_best.pth.tar'))
 
-    # Evaluate corruption accuracy
-    test_c_error, test_c_table, test_c_cm = test_c(test_dataset, net, criterion_test, args, wandb_logger,
-                                                 base_path='/ws/data/cifar/CIFAR-10-C/')
-    # print(f'Mean Corruption Error: {test_c_error: .3f}')
+    # Evaluate corruption accuracy debug
+    test_c_error, test_c_features, test_c_table, test_c_cm = test_c(test_dataset, net, criterion_test, args,
+                                                                    wandb_logger,
+                                                                    base_path='/ws/data/cifar/CIFAR-10-C/')
+
+    wandb_logger.log_evaluate(dict(test_c_error=test_c_error,
+                                   # test_c_features=test_c_features,
+                                   test_c_table=test_c_table,
+                                   test_c_cm=test_c_cm))
 
 
 def train(data_loader, model, criterion, optimizer, scheduler, epoch, args, wandb_logger):
@@ -337,9 +352,9 @@ def train(data_loader, model, criterion, optimizer, scheduler, epoch, args, wand
 
     print(f'Epoch {epoch}: Train Loss: {train_loss: .3f} | Train error: {train_error: .3f}')
 
-    if args.wandb:
-        for key, value in wandb_features.items():
-            wandb_logger.log(key, value)
+    # if args.wandb:
+    #     for key, value in wandb_features.items():
+    #         wandb_logger.log(key, value)
 
     return train_loss, train_error, wandb_features
 
@@ -414,9 +429,9 @@ def test(data_loader, model, criterion, args, wandb_logger, data_type='test/'):
 
     print(f'{data_type} Test Loss: {test_loss: .3f} | Test Error: {test_error: .3f}')
 
-    if args.wandb:
-        for key, value in wandb_features.items():
-            wandb_logger.log(key, value)
+    # if args.wandb:
+    #     for key, value in wandb_features.items():
+    #         wandb_logger.log(key, value)
 
     return test_loss, test_error, wandb_features, confusion_matrix
 
@@ -439,8 +454,9 @@ def test_c(test_dataset, model, criterion, args, wandb_logger, base_path=None):
                 num_workers=args.num_workers,
                 pin_memory=True)
             data_type = f'test/{corruption}/'
-            test_loss, test_error, wandb_features, confusion_matrix = test(test_loader, model, criterion, args, wandb_logger, data_type)
+            test_loss, test_error, test_feature, confusion_matrix = test(test_loader, model, criterion, args, wandb_logger, data_type)
 
+            wandb_features.update(test_feature)
             wandb_table[corruption]['loss'] = test_loss
             wandb_table[corruption]['error'] = test_error
             # wandb_plts[corruption] = confusion_matrix
@@ -455,7 +471,7 @@ def test_c(test_dataset, model, criterion, args, wandb_logger, base_path=None):
         test_c_cm = np.mean(confusion_matrices, axis=0)
         print(f'Mean Corruption Error: {test_c_error: .3f}')
 
-        return test_c_error, wandb_table, test_c_cm
+        return test_c_error, wandb_features, wandb_table, test_c_cm
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
