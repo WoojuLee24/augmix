@@ -153,3 +153,27 @@ def projNetv1(args,
                               nn.Linear(pred_dim, pred_dim))
 
     return _projNet(encoder, projector, predictor, hidden_layer='avgpool',)
+
+from third_party.WideResNet_pytorch.wideresnet import WideResNet
+def projNetv1_1(args,
+                pred_dim,
+                ):
+    encoder = WideResNet(depth=args.layers,
+                         num_classes=args.hidden_dim,
+                         widen_factor=args.widen_factor,
+                         drop_rate=args.droprate)
+    prev_dim = get_dim(encoder, 'fc', flattened=True)[-1]
+
+    projector = nn.Sequential(nn.Linear(prev_dim, prev_dim, bias=False),
+                              nn.BatchNorm1d(prev_dim),
+                              nn.ReLU(inplace=True),
+                              encoder.fc,
+                              nn.BatchNorm1d(args.hidden_dim, affine=False),
+                              )
+
+    predictor = nn.Sequential(nn.Linear(args.hidden_dim, pred_dim, bias=False),
+                              nn.BatchNorm1d(pred_dim),
+                              nn.ReLU(inplace=True),
+                              nn.Linear(pred_dim, pred_dim))
+
+    return _projNet(encoder, projector, predictor, hidden_layer='avgpool',)
