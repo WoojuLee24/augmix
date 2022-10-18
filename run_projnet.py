@@ -53,6 +53,7 @@ def get_args_from_parser():
                         type=str,
                         choices=['none', 'jsd', 'jsd_temper', 'jsdv3', 'jsdv3.01', 'jsdv3.02', 'kl',
                                  'projnetv1.pred', 'projnetv1.proj', 'projnetv1.repr',
+                                 'projnetv1.1', 'projnetv1.2',
                                  'supconv0.01',
                                  'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1'],
                         help='Type of additional loss')
