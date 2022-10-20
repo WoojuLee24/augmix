@@ -53,7 +53,7 @@ def get_args_from_parser():
                         type=str,
                         choices=['none', 'jsd', 'jsd_temper', 'jsdv3', 'jsdv3.01', 'jsdv3.02', 'kl',
                                  'projnetv1.pred', 'projnetv1.proj', 'projnetv1.repr',
-                                 'projnetv1.1', 'projnetv1.2',
+                                 'projnetv1.1', 'projnetv1.2', 'projnetv1.3',
                                  'supconv0.01',
                                  'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1'],
                         help='Type of additional loss')
@@ -79,7 +79,9 @@ def get_args_from_parser():
                         type=str,
                         default='wrn',
                         choices=['wrn',
-                                 'projnetv1',
+                                 'projnetv1', 'projnetv1.1', 'projnetv1.2', 'projnetv1.3', 'projnetv1.4', 'projnetv1.5',
+                                 'projnetv1.6', 'projnetv1.1.1', 'projnetv1.2.1', 'projnetv1.3.1', 'projnetv1.4.1', 'projnetv1.5.1',
+                                 'projnetv1.1.2', 'projnetv1.1.3', 'projnetv1.6.1', 'projnetv1.6.2',
                                  'wrnproj', 'allconv', 'densenet', 'resnext'],
                         help='Choose architecture.')
     ## projNet architecture options
@@ -180,6 +182,19 @@ def main():
         weight_decay=args.decay,
         nesterov=True)
 
+    ##############
+    ### Resume ###
+    ##############
+    start_epoch = 0
+    if args.resume:
+        if os.path.isfile(args.resume):
+            checkpoint = torch.load(args.resume)
+            start_epoch = checkpoint['epoch'] + 1
+            best_acc = checkpoint['best_acc']
+            net.load_state_dict(checkpoint['state_dict'])
+            # optimizer.load_state_dict(checkpoint['optimizer'])
+            print('Model restored from epoch:', start_epoch)
+
     ### Scheduler ###
     def get_lr(step, total_steps, lr_max, lr_min):
         """Compute learning rate according to cosine annealing schedule."""
@@ -194,20 +209,6 @@ def main():
             1,  # lr_lambda computes multiplicative factor
             1e-6 / args.learning_rate))
 
-    ##############
-    ### Resume ###
-    ##############
-    start_epoch = 0
-    if args.resume:
-        if os.path.isfile(args.resume):
-            checkpoint = torch.load(args.resume)
-            start_epoch = checkpoint['epoch'] + 1
-            best_acc = checkpoint['best_acc']
-            net.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            print('Model restored from epoch:', start_epoch)
-
-
     #########################
     ### IF: Evaluate mode ###
     #########################
@@ -215,12 +216,12 @@ def main():
     if args.evaluate:
         # Evaluate clean accuracy first because test_c mutates underlying data
         test_loss, test_error, test_features, test_cm = test(test_loader, net, criterion_test, args, wandb_logger)
-        # print(f'Clean: Test Loss: {float(test_loss.data)} | Train error: {test_error}')
+        print(f'Clean: Test Loss: {float(test_loss)} | Test error: {test_error}')
 
         # Evaluate corruption accuracy
-        test_c_error, test_c_table, test_c_cm = test_c(test_dataset, net, criterion_test, args, wandb_logger,
-                                                     base_path='/ws/data/cifar/CIFAR-10-C/')
-        # print(f'Mean Corruption Error: {test_c_error}')
+        test_c_error, wandb_features, test_c_table, test_c_cm = test_c(test_dataset, net, criterion_test, args, wandb_logger,
+                                                                      base_path='/ws/data/CIFAR/CIFAR-10-C/')
+        print(f'Mean Corruption Error: {test_c_error}')
 
         wandb_logger.log_evaluate(dict(test_features=test_features,
                                        test_cm=test_cm,
@@ -264,6 +265,9 @@ def main():
             'optimizer': optimizer.state_dict(),
         }
 
+        for param_group in optimizer.param_groups:
+            wandb_logger.log('learng_rate', param_group['lr'])
+
         save_path = os.path.join(args.save, 'checkpoint.pth.tar')
         torch.save(checkpoint, save_path)
         if is_best:
@@ -272,7 +276,7 @@ def main():
     # Evaluate corruption accuracy debug
     test_c_error, test_c_features, test_c_table, test_c_cm = test_c(test_dataset, net, criterion_test, args,
                                                                     wandb_logger,
-                                                                    base_path='/ws/data/cifar/CIFAR-10-C/')
+                                                                    base_path='/ws/data/CIFAR/CIFAR-10-C/')
 
     wandb_logger.log_evaluate(dict(test_c_error=test_c_error,
                                    # test_c_features=test_c_features,

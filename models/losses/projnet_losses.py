@@ -51,6 +51,8 @@ def projNetLoss(name, lambda_weight=12):
         return projNetLossv1_1(lambda_weight)
     elif name == 'projnetv1.2':
         return projNetLossv1_2(lambda_weight)
+    elif name == 'projnetv1.3':
+        return projNetLossv1_3(lambda_weight)
 
 
 # Version 1
@@ -97,6 +99,14 @@ from models.losses.losses import maximize_cosine_similarity_abs
 def projNetLossv1_2(lambda_weight=12):
     criterion = F.cross_entropy
     additional_criterion = maximize_cosine_similarity_abs
+
+    return _projNetLoss(criterion, additional_criterion,
+                        lambda_weight=lambda_weight)
+
+from models.losses.losses import jsd
+def projNetLossv1_3(lambda_weight=12):
+    criterion = F.cross_entropy
+    additional_criterion = jsd
 
     return _projNetLoss(criterion, additional_criterion,
                         lambda_weight=lambda_weight)

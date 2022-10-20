@@ -15,7 +15,7 @@ from third_party.WideResNet_pytorch.wideresnetproj import WideResNetProj
 from third_party.supervised_contrastive_net import SupConNet
 from third_party.WideResNet_pytorch.wideresnet_encoder import WideResNetEncoder
 
-from models.projnet import projNetv1
+from models.projnet import *
 
 def build_net(args, num_classes):
     if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
@@ -60,8 +60,38 @@ def build_projnet(args, num_classes):
     if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
         if args.model == 'projnetv1':
             net = projNetv1(args, num_classes)
+        elif args.model == 'projnetv1.1':
+            net = projNetv1_1(args, num_classes)
+        elif args.model == 'projnetv1.2':
+            net = projNetv1_2(args, num_classes)
+        elif args.model == 'projnetv1.3':
+            net = projNetv1_3(args, num_classes)
+        elif args.model == 'projnetv1.4':
+            net = projNetv1_4(args, num_classes)
+        elif args.model == 'projnetv1.5':
+            net = projNetv1_5(args, num_classes)
+        elif args.model == 'projnetv1.6':
+            net = projNetv1_6(args, num_classes)
+        elif args.model == 'projnetv1.1.1':
+            net = projNetv1_1_1(args, num_classes)
+        elif args.model == 'projnetv1.2.1':
+            net = projNetv1_2_1(args, num_classes)
+        elif args.model == 'projnetv1.3.1':
+            net = projNetv1_3_1(args, num_classes)
+        elif args.model == 'projnetv1.4.1':
+            net = projNetv1_4_1(args, num_classes)
+        elif args.model == 'projnetv1.5.1':
+            net = projNetv1_5_1(args, num_classes)
+        elif args.model == 'projnetv1.1.2':
+            net = projNetv1_1_2(args, num_classes)
+        elif args.model == 'projnetv1.1.3':
+            net = projNetv1_1_3(args, num_classes)
+        elif args.model == 'projnetv1.6.1':
+            net = projNetv1_6_1(args, num_classes)
+        elif args.model == 'projnetv1.6.2':
+            net = projNetv1_6_2(args, num_classes)
         else:
-            net = projNetv1(args, num_classes)
+            raise NotImplemented('Not implemented!!')
     else: # imagenet
         if args.pretrained:
             print("=> using pre-trained model '{}'".format(args.model))
