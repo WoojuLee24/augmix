@@ -10,7 +10,8 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     if name == 'none':
         loss = 0
     elif name == 'jsd':
-        loss = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight)
+        loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        return loss, features
     elif name == 'jsd.manual':
         loss = jsd_manual(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsd.manual.ce':
@@ -154,18 +155,26 @@ def analysisv1_0(logits_clean, logits_aug1, logits_aug2=None, lambda_weight=12):
     return loss, features
 
 
-def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
-    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean, dim=1),\
-                              F.softmax(logits_aug1, dim=1), \
-                              F.softmax(logits_aug2, dim=1)
+def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1),\
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
 
     # Clamp mixture distribution to avoid exploding KL divergence
     p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
-    loss = lambda_weight * (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
-                            F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
-                            F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+    jsd_distance = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
 
-    return loss
+    loss = lambda_weight * jsd_distance
+
+    features = {'jsd_distance': jsd_distance,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
+                }
+
+    return loss, features
 
 
 def jsd_manual(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):

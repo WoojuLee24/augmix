@@ -25,7 +25,7 @@ def build_net(args, num_classes):
         elif args.model == 'wrn':
             net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
         elif args.model == 'wrnexpand':
-            net = WideResNetExpand(args.layers, num_classes, args.widen_factor, args.droprate, args.expand_factor)
+            net = WideResNetExpand(args, args.layers, num_classes, args.widen_factor, args.droprate, args.expand_factor)
         elif args.model == 'wrnsimsiam':
             net = WideResNetSimsiam(args.layers, num_classes, args.widen_factor, args.droprate)
         elif args.model == 'wrn_encoder':

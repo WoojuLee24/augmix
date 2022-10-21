@@ -81,7 +81,7 @@ class NetworkBlock(nn.Module):
 class WideResNetExpand(nn.Module):
     """WideResNet class."""
 
-    def __init__(self, depth, num_classes, widen_factor=1, drop_rate=0.0, expand_factor=2):
+    def __init__(self, args, depth, num_classes, widen_factor=1, drop_rate=0.0, expand_factor=2):
         super(WideResNetExpand, self).__init__()
         self.hook_features = dict()
         n_channels = [16, 16 * widen_factor, 32 * widen_factor, 64 * widen_factor]
@@ -108,7 +108,7 @@ class WideResNetExpand(nn.Module):
         # self.fc1 = nn.Linear(n_channels[3], 2)
         # self.fc2 = nn.Linear(2, num_classes)
         self.n_channels = n_channels[3]
-        self.avgpool1d = nn.AvgPool1d(2)
+        self.avgpool1d = nn.AvgPool1d(args.expand_factor)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -134,8 +134,8 @@ class WideResNetExpand(nn.Module):
 
     def forward(self, x, targets=None):
         self.features = self.extract_features(x)
-        logits = self.fc(self.features)
-        # logits2 = self.avgpool1d(logits)
+        self.prelogits = self.fc(self.features)
+        logits = self.avgpool1d(self.prelogits)
 
         return logits
 
