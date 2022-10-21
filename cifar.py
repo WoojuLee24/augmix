@@ -68,6 +68,7 @@ def get_args_from_parser():
                         default='jsd',
                         type=str,
                         choices=['none', 'jsd', 'jsd.manual', 'jsd.manual.ce','jsd_temper',
+                                 'analysisv1.0',
                                  'jsdv1',
                                  'jsdv2', 'jsdv2.1',
                                  'jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
@@ -111,12 +112,15 @@ def get_args_from_parser():
     parser.add_argument('--model', '-m',
                         type=str,
                         default='wrn',
-                        choices=['wrn', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext'],
+                        choices=['wrn', 'wrnexpand','wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext'],
                         help='Choose architecture.')
     ## WRN Architecture options
     parser.add_argument('--layers', default=40, type=int, help='total number of layers')
     parser.add_argument('--widen-factor', default=2, type=int, help='Widen factor')
     parser.add_argument('--droprate', default=0.0, type=float, help='Dropout probability')
+
+    ## WRNExpnad Architecture options
+    parser.add_argument('--expand-factor', default=2, type=int, help='Expand factor')
 
     # Optimization options
     parser.add_argument('--epochs', '-e', type=int, default=100, help='Number of epochs to train.')
@@ -252,10 +256,12 @@ def main():
     ###########################
     elif args.analysis:
 
+        test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
         test_c_acc, test_c_table, test_c_cm, test_c_features = tester.test_c_v2(test_dataset, base_c_path) # analyzie jsd distance of corrupted data
         # test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)    # plot t-sne features
         print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
-        wandb_logger.log_evaluate(dict(test_c_table=test_c_table,
+        wandb_logger.log_evaluate(dict(test_cm=test_cm,
+                                       test_c_table=test_c_table,
                                        test_c_acc=test_c_acc,
                                        test_c_cm=test_c_cm,
                                        test_c_features=test_c_features
@@ -302,6 +308,8 @@ def main():
                 train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
             elif args.additional_loss == 'nojsd_apr_p':
                 train_loss_ema, train_features = trainer.train_apr_p(train_loader)
+            elif args.model == 'wrnexpand':
+                train_loss_ema, train_features = trainer.train_expand(train_loader)
             else:
                 train_loss_ema, train_features = trainer.train(train_loader)
             # train_loss_ema, train_features = trainer.train(train_loader)
