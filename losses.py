@@ -114,7 +114,45 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     elif name == 'msev1.0.detach':
         loss = mse_v1_0_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
 
+    # analysis test mode
+    elif name == 'analysisv1.0':
+        loss, features = analysisv1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight)
+        return loss, features
+
     return loss
+
+def analysisv1_0(logits_clean, logits_aug1, logits_aug2=None, lambda_weight=12):
+
+    B, C = logits_clean.size()
+
+    p_clean, p_aug1, = F.softmax(logits_clean, dim=1),\
+                       F.softmax(logits_aug1, dim=1)
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    # jsd: batchmean reduction
+    p_mixture = torch.clamp((p_clean + p_aug1) / 2., 1e-7, 1).log()
+    jsd = (F.kl_div(p_mixture, p_clean, reduction='batchmean') + F.kl_div(p_mixture, p_aug1, reduction='batchmean')) / 2.
+    jsd_mean = (F.kl_div(p_mixture, p_clean, reduction='mean') + F.kl_div(p_mixture, p_aug1, reduction='mean')) / 2.
+
+    # mse: mean reduction
+    mse = (F.mse_loss(logits_clean, logits_aug1, reduction='mean')) / B
+
+    # cosine_similarity: mean reduction
+    similarity = F.cosine_similarity(logits_clean, logits_aug1)
+    similarity = similarity.mean()
+
+    features = {'jsd_batchmean': jsd,
+                'jsd_mean': jsd_mean,
+                'mse': mse,
+                'similarity': similarity,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                'p_mixture': p_mixture,
+                }
+    loss = jsd
+
+    return loss, features
+
 
 def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12):
     p_clean, p_aug1, p_aug2 = F.softmax(logits_clean, dim=1),\
