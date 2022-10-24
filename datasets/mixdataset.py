@@ -73,7 +73,7 @@ class AugMixDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         x, y = self.dataset[i]
         if self.no_jsd:
-            return aug(x, self.preprocess), y
+            return aug(x, self.preprocess, self.all_ops, self.mixture_width, self.mixture_depth, self.aug_severity, self.mixture_coefficient), y
         else:
             original = self.preprocess(x)
             aug1 = aug(x, self.preprocess, self.all_ops, self.mixture_width, self.mixture_depth, self.aug_severity, self.mixture_coefficient)

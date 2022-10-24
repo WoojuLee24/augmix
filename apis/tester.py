@@ -147,10 +147,10 @@ class Tester():
                 # wandb_plts[corruption] = confusion_matrix
 
                 for key, value in test_c_feature.items():
-                    corruption_key = f'test/{corruption}_' + key
+                    corruption_key = f'test/{corruption}/{key}'
                     test_c_features[corruption_key] = value
                 for key, value in test_c_feature.items():
-                    key = f'test/{key}'
+                    key = f'test/mean_corruption/{key}'
                     test_c_mean_features[key] += value
 
                 corruption_accs.append(test_acc)
@@ -252,11 +252,13 @@ class Tester():
         wandb_features['p_clean_sample'] = feature['p_clean']
         wandb_features['p_aug1_sample'] = feature['p_aug1']
 
-        # loss, error
+        # loss
+        denom = len(data_loader.dataset) / self.args.eval_batch_size
+        test_loss = total_loss / denom
+
+        # error
         datasize = len(data_loader.dataset)
-        # wandb_features[f'test/{data_type}_loss'] = total_loss / datasize
-        # wandb_features[f'test/{data_type}_error'] = 100 - 100. * total_correct / datasize
-        test_loss = total_loss / datasize
         test_acc = total_correct / datasize
+
         return test_loss, test_acc, wandb_features, confusion_matrix
 
