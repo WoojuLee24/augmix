@@ -112,15 +112,18 @@ def get_args_from_parser():
     parser.add_argument('--model', '-m',
                         type=str,
                         default='wrn',
-                        choices=['wrn', 'wrnexpand','wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext'],
+                        choices=['wrn', 'wrnauxbn', 'wrnexpand', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext'],
                         help='Choose architecture.')
     ## WRN Architecture options
     parser.add_argument('--layers', default=40, type=int, help='total number of layers')
     parser.add_argument('--widen-factor', default=2, type=int, help='Widen factor')
     parser.add_argument('--droprate', default=0.0, type=float, help='Dropout probability')
 
-    ## WRNExpnad Architecture options
+    ## WRNExpand Architecture options
     parser.add_argument('--expand-factor', default=2, type=int, help='Expand factor')
+
+    ## WRNAuxBN Architecture options
+    parser.add_argument('--aux', default=3, type=str, help='AuxBN factor')
 
     # Optimization options
     parser.add_argument('--epochs', '-e', type=int, default=100, help='Number of epochs to train.')
@@ -310,6 +313,8 @@ def main():
                 train_loss_ema, train_features = trainer.train_apr_p(train_loader)
             elif args.model == 'wrnexpand':
                 train_loss_ema, train_features = trainer.train_expand(train_loader)
+            elif args.model == 'wrnauxbn':
+                train_loss_ema, train_features = trainer.train_auxbn(train_loader)
             else:
                 train_loss_ema, train_features = trainer.train(train_loader)
             # train_loss_ema, train_features = trainer.train(train_loader)

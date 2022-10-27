@@ -10,6 +10,7 @@ from losses import CenterLoss, MlpJSDLoss, SupConLoss
 from third_party.ResNeXt_DenseNet.models.densenet import densenet
 from third_party.ResNeXt_DenseNet.models.resnext import resnext29
 from third_party.WideResNet_pytorch.wideresnet import WideResNet
+from third_party.WideResNet_pytorch.wideresnet_auxbn import WideResNetAuxBN
 from third_party.WideResNet_pytorch.wideresnet_expand import WideResNetExpand
 from third_party.WideResNet_pytorch.wideresnet_simsiam import WideResNetSimsiam
 from third_party.WideResNet_pytorch.wideresnetproj import WideResNetProj
@@ -24,6 +25,8 @@ def build_net(args, num_classes):
             net = densenet(num_classes=num_classes)
         elif args.model == 'wrn':
             net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
+        elif args.model == 'wrnauxbn':
+            net = WideResNetAuxBN(args, args.layers, num_classes, args.widen_factor, args.droprate)
         elif args.model == 'wrnexpand':
             net = WideResNetExpand(args, args.layers, num_classes, args.widen_factor, args.droprate, args.expand_factor)
         elif args.model == 'wrnsimsiam':
