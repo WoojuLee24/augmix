@@ -831,7 +831,7 @@ class Trainer():
         total_ce_loss, total_additional_loss = 0., 0.
         total_correct, total_pred_aug_correct, total_aug_correct = 0., 0., 0.
         data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
-
+        lr = self.scheduler.get_lr()
         end = time.time()
         for i, (images, targets) in enumerate(data_loader):
             ''' Compute data loading time '''
@@ -956,6 +956,9 @@ class Trainer():
         wandb_features['train/aug_error'] = 100 - 100. * total_aug_correct / len(data_loader.dataset)
         wandb_features['train/pred_aug_error'] = 100 - 100. * total_pred_aug_correct / len(data_loader.dataset)
 
+        # lr
+        wandb_features['train/lr'] = lr
+
         return loss_ema, wandb_features  # acc1_ema, batch_ema
 
 
@@ -965,7 +968,7 @@ class Trainer():
         total_ce_loss, total_additional_loss = 0., 0.
         total_correct, total_pred_aug_correct, total_aug_correct = 0., 0., 0.
         data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
-
+        lr = self.scheduler.get_lr()
         end = time.time()
         for i, (images, targets) in enumerate(data_loader):
             ''' Compute data loading time '''
@@ -1081,6 +1084,9 @@ class Trainer():
         wandb_features['train/error'] = 100 - 100. * total_correct / len(data_loader.dataset)
         wandb_features['train/aug_error'] = 100 - 100. * total_aug_correct / len(data_loader.dataset)
         wandb_features['train/pred_aug_error'] = 100 - 100. * total_pred_aug_correct / len(data_loader.dataset)
+
+        # lr
+        wandb_features['train/lr'] = lr
 
         return loss_ema, wandb_features  # acc1_ema, batch_ema
 

@@ -311,7 +311,7 @@ def main():
                 train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
             elif args.additional_loss == 'nojsd_apr_p':
                 train_loss_ema, train_features = trainer.train_apr_p(train_loader)
-            elif args.model == 'wrnexpand' or 'wrnexpand2':
+            elif args.model in ['wrnexpand', 'wrnexpand2']:
                 train_loss_ema, train_features = trainer.train_expand(train_loader)
             elif args.model == 'wrnauxbn':
                 train_loss_ema, train_features = trainer.train_auxbn(train_loader)
