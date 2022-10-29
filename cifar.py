@@ -300,12 +300,12 @@ def main():
             wandb_logger.before_train_epoch() # wandb here
             begin_time = time.time()
             # train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
-            if args.additional_loss in ['jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
-                                        'jsdv3.cossim', 'jsdv3.ntxent', 'jsdv3.ntxent.diff',
-                                        'jsdv3.log.inv', 'jsdv3.inv',
-                                        ]:
-                train_loss_ema, train_features = trainer.train3(train_loader, epoch)
-            elif args.additional_loss in ['jsdv3.simsiam', 'jsdv3.simsiamv0.1']:
+            # if args.additional_loss in ['jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
+            #                             'jsdv3.cossim', 'jsdv3.ntxent', 'jsdv3.ntxent.diff',
+            #                             'jsdv3.log.inv', 'jsdv3.inv',
+            #                             ]:
+            #     train_loss_ema, train_features = trainer.train3(train_loader, epoch)
+            if args.additional_loss in ['jsdv3.simsiam', 'jsdv3.simsiamv0.1']:
                 train_loss_ema, train_features = trainer.train3_simsiam(train_loader, epoch)
             elif args.additional_loss == 'jsdv3_apr_p':
                 train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
