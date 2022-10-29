@@ -112,7 +112,7 @@ def get_args_from_parser():
     parser.add_argument('--model', '-m',
                         type=str,
                         default='wrn',
-                        choices=['wrn', 'wrnauxbn', 'wrnexpand', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext'],
+                        choices=['wrn', 'wrnauxbn', 'wrnexpand', 'wrnexpand2', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext'],
                         help='Choose architecture.')
     ## WRN Architecture options
     parser.add_argument('--layers', default=40, type=int, help='total number of layers')
@@ -311,7 +311,7 @@ def main():
                 train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
             elif args.additional_loss == 'nojsd_apr_p':
                 train_loss_ema, train_features = trainer.train_apr_p(train_loader)
-            elif args.model == 'wrnexpand':
+            elif args.model == 'wrnexpand' or 'wrnexpand2':
                 train_loss_ema, train_features = trainer.train_expand(train_loader)
             elif args.model == 'wrnauxbn':
                 train_loss_ema, train_features = trainer.train_auxbn(train_loader)

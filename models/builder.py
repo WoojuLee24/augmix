@@ -23,7 +23,7 @@ def build_net(args, num_classes):
     if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
         if args.model == 'densenet':
             net = densenet(num_classes=num_classes)
-        elif args.model == 'wrn':
+        elif args.model == 'wrn' or 'wrnexpand2':
             net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
         elif args.model == 'wrnauxbn':
             net = WideResNetAuxBN(args, args.layers, num_classes, args.widen_factor, args.droprate)
