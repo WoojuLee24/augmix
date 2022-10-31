@@ -72,6 +72,7 @@ def get_args_from_parser():
                                  'jsdv1',
                                  'jsdv2', 'jsdv2.1',
                                  'jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
+                                 'jsdv3.0.1.detach', 'jsdv3.0.2.detach', 'jsdv3.0.3.detach'
                                  'jsdv3.test',
                                  'jsdv3.1', 'jsdv3.1.1',
                                  'jsdv3.log.inv', 'jsdv3.inv',

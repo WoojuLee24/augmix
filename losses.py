@@ -45,15 +45,28 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         margin = args.margin
         loss, features = jsdv3_0_2(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
         return loss, features
+    elif name == 'jsdv3.0.3':
+        margin = args.margin
+        loss, features = jsdv3_0_3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+    elif name == 'jsdv3.0.1.detach':
+        margin = args.margin
+        loss, features = jsdv3_0_1_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+        return loss, features
+    elif name == 'jsdv3.0.2.detach':
+        margin = args.margin
+        loss, features = jsdv3_0_2_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+        return loss, features
+    elif name == 'jsdv3.0.3.detach':
+        margin = args.margin
+        loss, features = jsdv3_0_3_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+
     elif name == 'jsdv3.log.inv':
         loss, features = jsdv3_log_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
     elif name == 'jsdv3.inv':
         loss, features = jsdv3_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
-    elif name == 'jsdv3.0.3':
-        margin = args.margin
-        loss, features = jsdv3_0_3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+
         return loss, features
     # elif name == 'jsdv3.04':
     #     margin = args.margin
@@ -644,6 +657,197 @@ def jsdv3_0_3(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1
     jsd_matrix_same_instance_max, _ = jsd_matrix_same_instance.max(dim=1, keepdim=True)
     jsd_matrix_same_instance_max = jsd_matrix_same_instance_max.repeat((1, batch_size)) * mask_diff_triuu
     jsd_matrix_triplet = torch.clamp((jsd_matrix_same_instance_max - jsd_matrix_diff_class + margin) * mask_diff_triuu, min=0)
+    triplet_loss = jsd_matrix_triplet.sum() / (torch.count_nonzero(jsd_matrix_triplet) + 1e-7)
+
+    loss += lambda_weight * triplet_loss
+
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                'triplet_loss': triplet_loss,
+                'jsd_matrix': jsd_matrix,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
+                }
+
+    return loss, features
+
+
+def jsdv3_0_1_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
+    '''
+    edited from jsdv3
+
+    triplet jsd loss between positives (same class)  and negatives (diff class) between p_orig and p_aug
+    hard positive max version
+    detach the same class
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
+
+    loss = 12 * jsd_distance
+
+    jsd_matrix_same_class_max, _ = jsd_matrix_same_class.max(dim=1, keepdim=True)
+    jsd_matrix_same_class_max = jsd_matrix_same_class_max.repeat((1, batch_size)) * mask_diff_triuu
+    jsd_matrix_triplet = torch.clamp((jsd_matrix_same_class_max.detach() - jsd_matrix_diff_class + margin) * mask_diff_triuu, min=0)
+    triplet_loss = jsd_matrix_triplet.sum() / torch.count_nonzero(jsd_matrix_triplet)
+
+    loss += lambda_weight * triplet_loss
+
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                'triplet_loss': triplet_loss,
+                'jsd_matrix': jsd_matrix,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
+                }
+
+    return loss, features
+
+
+def jsdv3_0_2_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
+    '''
+    edited from jsdv3
+    triplet jsd loss between positives (same class)  and negatives (diff class) between p_orig and p_aug
+    positive mean version
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
+
+    loss = 12 * jsd_distance
+
+    count = (torch.count_nonzero(jsd_matrix_same_class, dim=1) + 1e-7)
+    count = count.unsqueeze(dim=1)
+    jsd_matrix_same_class_mean = jsd_matrix_same_class.sum(dim=1, keepdim=True) / count
+    jsd_matrix_same_class_mean = jsd_matrix_same_class_mean.repeat((1, batch_size)) * mask_diff_triuu
+
+    jsd_matrix_triplet = torch.clamp((jsd_matrix_same_class_mean.detach() - jsd_matrix_diff_class + margin) * mask_diff_triuu, min=0)
+    triplet_loss = jsd_matrix_triplet.sum() / torch.count_nonzero(jsd_matrix_triplet)
+
+    loss += lambda_weight * triplet_loss
+
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                'triplet_loss': triplet_loss,
+                'jsd_matrix': jsd_matrix,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
+                }
+
+    return loss, features
+
+
+def jsdv3_0_3_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
+    '''
+    edited from jsdv3.0.1
+    same class -> same instance
+
+    triplet jsd loss between positives (same instance)  and negatives (diff class) between p_orig and p_aug
+    hard positive max version
+
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
+
+    loss = 12 * jsd_distance
+
+    jsd_matrix_same_instance_max, _ = jsd_matrix_same_instance.max(dim=1, keepdim=True)
+    jsd_matrix_same_instance_max = jsd_matrix_same_instance_max.repeat((1, batch_size)) * mask_diff_triuu
+    jsd_matrix_triplet = torch.clamp((jsd_matrix_same_instance_max.detach() - jsd_matrix_diff_class + margin) * mask_diff_triuu, min=0)
     triplet_loss = jsd_matrix_triplet.sum() / (torch.count_nonzero(jsd_matrix_triplet) + 1e-7)
 
     loss += lambda_weight * triplet_loss
