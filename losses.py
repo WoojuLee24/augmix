@@ -59,14 +59,12 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     elif name == 'jsdv3.0.3.detach':
         margin = args.margin
         loss, features = jsdv3_0_3_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
-
+        return loss, features
     elif name == 'jsdv3.log.inv':
         loss, features = jsdv3_log_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
     elif name == 'jsdv3.inv':
         loss, features = jsdv3_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
-        return loss, features
-
         return loss, features
     # elif name == 'jsdv3.04':
     #     margin = args.margin
