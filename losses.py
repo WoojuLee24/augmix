@@ -588,6 +588,10 @@ def jsdv3_0_2(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1
                 'jsd_distance_diff_class': jsd_distance_diff_class,
                 'jsd_distance_same_class': jsd_distance_same_class,
                 'triplet_loss': triplet_loss,
+                'jsd_matrix': jsd_matrix,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
                 }
 
     return loss, features
@@ -651,6 +655,7 @@ def jsdv3_0_3(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1
                 'jsd_matrix': jsd_matrix,
                 'p_clean': p_clean,
                 'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
                 }
 
     return loss, features
