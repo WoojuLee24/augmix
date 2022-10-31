@@ -76,6 +76,7 @@ def get_args_from_parser():
                                  'jsdv3.test',
                                  'jsdv3.1', 'jsdv3.1.1',
                                  'jsdv3.log.inv', 'jsdv3.inv',
+                                 'jsdv3.mse',
                                  'jsdv3.cossim', 'jsdv3.simsiam', 'jsdv3.simsiamv0.1',
                                  'jsdv3.ntxent', 'jsdv3.ntxent.diff',
                                  'kl',
@@ -85,7 +86,7 @@ def get_args_from_parser():
                                  'klv1.0', 'klv1.1', 'klv1.2',
                                  'klv1.0.detach', 'klv1.1.detach', 'klv1.2.detach',
                                  'klv1.0.inv', 'klv1.1.inv', 'klv1.2.inv',
-                                 'msev1.0','msev1.0.detach',
+                                 'msev1.0', 'msev1.0.detach',
                                  ],
                         help='Type of additional loss')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
