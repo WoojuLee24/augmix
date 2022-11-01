@@ -56,6 +56,7 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     elif name == 'jsdv3.0.3':
         margin = args.margin
         loss, features = jsdv3_0_3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+        return loss, features
     elif name == 'jsdv3.0.1.detach':
         margin = args.margin
         loss, features = jsdv3_0_1_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
@@ -711,6 +712,87 @@ def jsdv3_msev1_0_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight=1
                 }
 
     return loss, features
+
+
+def jsdv3_l1v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
+    '''
+    JSD matrix loss
+    with constrastive L1 loss
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+
+    # L1 loss
+
+    mse_matrix = make_matrix(logits_clean, logits_aug1, criterion=nn.L1Loss(reduction='none'), reduction='sum') + \
+                 make_matrix(logits_aug1, logits_aug2, criterion=nn.L1Loss(reduction='none'), reduction='sum') + \
+                 make_matrix(logits_aug2, logits_aug1, criterion=nn.L1Loss(reduction='none'), reduction='sum')
+
+    mse_matrix_same_instance = mse_matrix * mask_same_instance
+    mse_distance = mse_matrix_same_instance.sum() / mask_same_instance.sum()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    mse_matrix_diff_class = mse_matrix * mask_diff_triuu
+    mse_distance_diff_class = mse_matrix_diff_class.sum() / mask_diff_triuu.sum()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    mse_matrix_same_class = mse_matrix * mask_same_triuu
+    mse_distance_same_class = mse_matrix_same_class.sum() / mask_same_triuu.sum()
+
+    mse_matrix_same_class_max, _ = mse_matrix_same_class.max(dim=1, keepdim=True)
+    mse_matrix_same_class_max = mse_matrix_same_class_max.repeat((1, batch_size)) * mask_diff_triuu
+    mse_matrix_triplet = torch.clamp((mse_matrix_same_class_max - mse_matrix_diff_class + margin) * mask_diff_triuu, min=0)
+    triplet_loss = mse_matrix_triplet.sum() / (torch.count_nonzero(mse_matrix_triplet) + 1e-7)
+
+    # JSD loss
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
+
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum()
+
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
+
+    loss = lambda_weight * triplet_loss
+
+    # jsd_debug = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=lambda_weight)
+
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                'jsd_matrix': jsd_matrix,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                'p_aug2': p_aug2,
+                'mse_distance': mse_distance,
+                'mse_distance_same_class': mse_distance_same_class,
+                'mse_distance_diff_class': mse_distance_diff_class,
+                'mse_matrix': mse_matrix,
+                'triplet_loss': triplet_loss,
+                }
+
+    return loss, features
+
 
 
 def jsdv3_0_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
