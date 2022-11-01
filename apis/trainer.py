@@ -728,15 +728,15 @@ class Trainer():
                                                                self.args.lambda_weight, targets, self.args.temper,
                                                                self.args.reduction)
 
-                feature_clean, feature_aug1, feature_aug2 = torch.split(self.net.module.features, images[0].size(0))
-                feat_additional_loss, feat_feature = get_additional_loss(self.args,
-                                                                         feature_clean, feature_aug1, feature_aug2,
-                                                                         self.args.lambda_weight, targets, self.args.temper,
-                                                                         self.args.reduction)
-
-                for key, value in feat_feature.items():
-                    new_key = 'feat_' + key
-                    feature[new_key] = feat_feature[key].detach()
+                # feature_clean, feature_aug1, feature_aug2 = torch.split(self.net.module.features, images[0].size(0))
+                # feat_additional_loss, feat_feature = get_additional_loss(self.args,
+                #                                                          feature_clean, feature_aug1, feature_aug2,
+                #                                                          self.args.lambda_weight, targets, self.args.temper,
+                #                                                          self.args.reduction)
+                #
+                # for key, value in feat_feature.items():
+                #     new_key = 'feat_' + key
+                #     feature[new_key] = feat_feature[key].detach()
 
                 # for key, feature in self.net.module.hook_features.items():
                 #     feature_clean, feature_aug1, feature_aug2 = torch.split(feature[0], images[0].size(0))

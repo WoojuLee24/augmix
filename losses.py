@@ -2041,7 +2041,7 @@ def supcontrast_test(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
 def supcontrast_maskv0_01(logits_anchor, logits_contrast, targets, mask_anchor, mask_contrast, lambda_weight=0.1, temper=0.07):
     base_temper = temper
 
-    logits_anchor, logits_contrast2 = F.normalize(logits_anchor, dim=1), F.normalize(logits_contrast, dim=1)
+    logits_anchor, logits_contrast = F.normalize(logits_anchor, dim=1), F.normalize(logits_contrast, dim=1)
 
     anchor_dot_contrast = torch.div(torch.matmul(logits_anchor, logits_contrast.T), temper)
     logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
