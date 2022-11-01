@@ -5,7 +5,6 @@ import torch.backends.cudnn as cudnn
 
 from models.allconv import AllConvNet
 from models import MyDataParallel
-from losses import CenterLoss, MlpJSDLoss, SupConLoss
 
 from third_party.ResNeXt_DenseNet.models.densenet import densenet
 from third_party.ResNeXt_DenseNet.models.resnext import resnext29

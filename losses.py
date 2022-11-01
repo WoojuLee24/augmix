@@ -75,17 +75,18 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     elif name == 'jsdv3.inv':
         loss, features = jsdv3_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
-    # elif name == 'jsdv3.04':
-    #     margin = args.margin
-    #     loss, features = jsdv3_04(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
-    #     return loss, features
     elif name == 'jsdv3.ntxent':
         margin = args.margin
         loss, features = jsdv3_ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
         return loss, features
-    elif name == 'jsdv3.ntxent.diff':
+    elif name == 'jsdv3.ntxentv0.01':
         margin = args.margin
-        loss, features = jsdv3_ntxent_diff(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+        loss, features = jsdv3_ntxentv0_01(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+        return loss, features
+    elif name == 'jsdv3.ntxentv0.02':
+        margin = args.margin
+        loss, features = jsdv3_ntxentv0_02(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets,
+                                           margin)
         return loss, features
     elif name == 'jsd_temper' or name == 'mlpjsdv1.1':
         loss = jsd_temper(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, reduction)
@@ -99,14 +100,14 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         loss = cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction)
     elif name == 'ntxent':
         loss = ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets)
-    elif name == 'supconv0.01':
-        loss = supconv0_01(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight,  temper, reduction)
-    elif name == 'supconv0.01_test':
-        loss = supconv0_01_test(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction)
-    elif name == 'supconv0.01.diff':
-        loss = supconv0_01_diff(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction)
-    elif name == 'supconv0.02':
-        loss = supconv0_02(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight,  temper, reduction)
+    elif name == 'supcontrast':
+        loss = supcontrast(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction)
+    elif name == 'supcontrast_test':
+        loss = supcontrast_test(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction)
+    elif name == 'supcontrastv0.01':
+        loss = supcontrastv0_01(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight,  temper, reduction)
+    elif name == 'supcontrastv0.02':
+        loss = supcontrastv0_02(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight,  temper, reduction)
     elif name == 'jsdv3_apr_p':
         loss, features = jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
@@ -1423,7 +1424,7 @@ def jsdv3_ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, tempe
     pred_aug1 = logits_aug1.data.max(1)[1]
     pred_aug2 = logits_aug2.data.max(1)[1]
 
-    ntxent_loss = supconv0_01(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction='batchmean')
+    ntxent_loss = supcontrast(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction='batchmean')
 
     batch_size = logits_clean.size()[0]
     targets = targets.contiguous().view(-1, 1)  # [B, 1]
@@ -1467,10 +1468,11 @@ def jsdv3_ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, tempe
     return loss, features
 
 
-def jsdv3_ntxent_diff(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
+def jsdv3_ntxentv0_01(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
     '''
     JSD matrix loss
-    JSD same instance, cossim same class and diff class
+    JSD same instance,
+    SupContrastv0_01: same class positives, diff class negatives
     '''
 
     device = logits_clean.device
@@ -1478,7 +1480,63 @@ def jsdv3_ntxent_diff(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, 
     pred_aug1 = logits_aug1.data.max(1)[1]
     pred_aug2 = logits_aug2.data.max(1)[1]
 
-    ntxent_loss = supconv0_01_diff(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction='batchmean')
+    ntxent_loss = supcontrastv0_01(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction='batchmean')
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
+
+    loss = 12 * jsd_distance + ntxent_loss
+    triplet_loss = ntxent_loss
+
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                'triplet_loss': triplet_loss,
+                'jsd_matrix': jsd_matrix,
+                'p_clean': p_clean,
+                'p_aug1': p_aug1,
+                }
+
+    return loss, features
+
+
+def jsdv3_ntxentv0_02(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
+    '''
+    JSD matrix loss
+    JSD same instance,
+    SupContrastv0_01: same class positives, diff class negatives
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    ntxent_loss = supcontrastv0_02(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction='batchmean')
 
     batch_size = logits_clean.size()[0]
     targets = targets.contiguous().view(-1, 1)  # [B, 1]
@@ -1799,7 +1857,7 @@ def ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, tempe
     logits_clean_0 = logits_clean[targets==0]
     return loss
 
-def supconv0_01(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=0.1, temper=0.07, reduction='batchmean'):
+def supcontrast(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=0.1, temper=0.07, reduction='batchmean'):
 
     """
     original supcontrast loss
@@ -1885,7 +1943,7 @@ def supconv0_01(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weig
     return loss
 
 
-def supconv0_01_test(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=0.1, temper=0.07, reduction='batchmean'):
+def supcontrast_test(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=0.1, temper=0.07, reduction='batchmean'):
 
     """
     original supcontrast loss
@@ -1925,7 +1983,7 @@ def supconv0_01_test(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
         mask = torch.eq(labels, labels.T).float().to(device)
     else:
         mask = mask.float().to(device)
-    mask_np = mask.cpu().detach().numpy()
+    mask_np = mask.cpu().detach().numpy()   # same instance or same class
     contrast_count = features.shape[1]
     contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0)
     if contrast_mode == 'one':
@@ -1949,7 +2007,7 @@ def supconv0_01_test(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
 
     # tile mask
     mask = mask.repeat(anchor_count, contrast_count)
-    mask_np2 = mask.cpu().detach().numpy()
+    mask_np2 = mask.cpu().detach().numpy()  # self case, same instance, same class for augmix
     # mask-out self-contrast cases
     logits_mask = torch.scatter(
         torch.ones_like(mask),
@@ -1957,19 +2015,19 @@ def supconv0_01_test(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
         torch.arange(batch_size * anchor_count).view(-1, 1).to(device),
         0
     )
-    mask_np3 = logits_mask.cpu().detach().numpy()
+    mask_np3 = logits_mask.cpu().detach().numpy()   # 1 - self case
     mask = mask * logits_mask
-    mask_np4 = mask.cpu().detach().numpy()
+    mask_np4 = mask.cpu().detach().numpy()  # same instance, same class for augmix
 
     # compute log_prob
     exp_logits = torch.exp(logits) * logits_mask
-    exp_logits_np = exp_logits.cpu().detach().numpy()
+    exp_logits_np = exp_logits.cpu().detach().numpy() # denominator of ntxent
     log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
     log_exp_logits_sum_np = torch.log(exp_logits.sum(1, keepdim=True)).cpu().detach().numpy()
     log_prob_np = log_prob.cpu().detach().numpy()
 
     # compute mean of log-likelihood over positive
-    mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+    mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1) # mask: self instance, self contrast case
     mean_log_prob_pos_np = mean_log_prob_pos.cpu().detach().numpy()
 
     # loss
@@ -1980,8 +2038,10 @@ def supconv0_01_test(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
     return loss
 
 
-def supcon_maskv0_01(logits_anchor, logits_contrast, targets, mask_anchor, mask_contrast, lambda_weight=0.1, temper=0.07):
+def supcontrast_maskv0_01(logits_anchor, logits_contrast, targets, mask_anchor, mask_contrast, lambda_weight=0.1, temper=0.07):
     base_temper = temper
+
+    logits_anchor, logits_contrast2 = F.normalize(logits_anchor, dim=1), F.normalize(logits_contrast, dim=1)
 
     anchor_dot_contrast = torch.div(torch.matmul(logits_anchor, logits_contrast.T), temper)
     logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
@@ -1989,13 +2049,46 @@ def supcon_maskv0_01(logits_anchor, logits_contrast, targets, mask_anchor, mask_
 
     exp_logits = torch.exp(logits) * mask_contrast
     log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
-    mean_log_prob_pos = (mask_anchor * log_prob).sum(1) / mask_contrast.sum(1)
+    mean_log_prob_pos = (mask_anchor * log_prob).sum(1) / mask_anchor.sum(1)
     loss = - (temper / base_temper) * mean_log_prob_pos
     loss = loss.mean()
+
     return loss
 
 
-def supconv0_01_diff(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=0.1, temper=0.07, reduction='batchmean'):
+def supcontrastv0_01(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=0.1, temper=0.07, reduction='batchmean'):
+
+    """
+    supcontrast loss
+    same instance, class: positive, diff class: negative, same class: skip
+    """
+
+    mask = None
+    contrast_mode = 'all'
+    base_temper = temper
+    device = logits_clean.device
+    batch_size = logits_clean.size()[0]
+    targets = labels
+
+    targets = targets.contiguous().view(-1, 1)
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_same_class_np = mask_same_class.detach().cpu().numpy()
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+
+
+    # mask_same_instance_diff_class_np = mask_same_instance_diff_class.detach().cpu().numpy()
+
+    loss1 = supcontrast_maskv0_01(logits_clean, logits_aug1, targets, mask_same_class, mask_identical, lambda_weight, temper)
+    loss2 = supcontrast_maskv0_01(logits_clean, logits_aug2, targets, mask_same_class, mask_identical, lambda_weight, temper)
+    loss3 = supcontrast_maskv0_01(logits_aug1, logits_aug2, targets, mask_same_class, mask_identical, lambda_weight, temper)
+
+    loss = lambda_weight * (loss1 + loss2 + loss3) / 3
+
+    return loss
+
+
+
+def supcontrastv0_02(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=0.1, temper=0.07, reduction='batchmean'):
 
     """
     supcontrast loss
@@ -2010,19 +2103,22 @@ def supconv0_01_diff(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
     targets = labels
 
     # temporary deprecated
-    logits_clean, logits_aug1, logits_aug2 = F.normalize(logits_clean, dim=1), \
-                                             F.normalize(logits_aug1, dim=1), \
-                                             F.normalize(logits_aug2, dim=1),
 
 
+    targets = targets.contiguous().view(-1, 1)
     mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
     mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    # mask_same_class_np = mask_same_class.detach().cpu().numpy()
     mask_diff_class = 1 - mask_same_class  # [B, B]
+    # mask_diff_class_np = mask_diff_class.detach().cpu().numpy()
     mask_same_instance_diff_class = mask_same_instance + mask_diff_class
+    # mask_same_instance_diff_class_np = mask_same_instance_diff_class.detach().cpu().numpy()
 
-    loss1 = supcon_maskv0_01(logits_clean, logits_aug1, targets, mask_same_instance, mask_same_instance_diff_class, lambda_weight, temper)
-    loss2 = supcon_maskv0_01(logits_clean, logits_aug2, targets, mask_same_instance, mask_same_instance_diff_class, lambda_weight, temper)
-    loss = lambda_weight * (loss1 + loss2)
+    loss1 = supcontrast_maskv0_01(logits_clean, logits_aug1, targets, mask_same_instance, mask_same_instance_diff_class, lambda_weight, temper)
+    loss2 = supcontrast_maskv0_01(logits_clean, logits_aug2, targets, mask_same_instance, mask_same_instance_diff_class, lambda_weight, temper)
+    loss3 = supcontrast_maskv0_01(logits_aug1, logits_aug2, targets, mask_same_instance, mask_same_instance_diff_class, lambda_weight, temper)
+
+    loss = lambda_weight * (loss1 + loss2 + loss3) / 3
 
     return loss
 
@@ -2107,164 +2203,3 @@ def supconv0_01_norm(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
     loss *= lambda_weight
 
     return loss
-
-
-####
-
-class CenterLoss(nn.Module):
-    """Center loss.
-
-    Reference:
-    Wen et al. A Discriminative Feature Learning Approach for Deep Face Recognition. ECCV 2016.
-
-    Args:
-        num_classes (int): number of classes.
-        feat_dim (int): feature dimension.
-    """
-
-    def __init__(self, num_classes=10, feat_dim=2, use_gpu=True):
-        super(CenterLoss, self).__init__()
-        self.num_classes = num_classes
-        self.feat_dim = feat_dim
-        self.use_gpu = use_gpu
-
-        if self.use_gpu:
-            self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim).cuda())
-        else:
-            self.centers = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
-
-    def forward(self, x, labels):
-        """
-        Args:
-            x: feature matrix with shape (batch_size, feat_dim).
-            labels: ground truth labels with shape (batch_size).
-        """
-        batch_size = x.size(0)
-        distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(batch_size, self.num_classes) + \
-                  torch.pow(self.centers, 2).sum(dim=1, keepdim=True).expand(self.num_classes, batch_size).t()
-        distmat.addmm_(1, -2, x, self.centers.t())
-
-        classes = torch.arange(self.num_classes).long()
-        if self.use_gpu: classes = classes.cuda()
-        labels = torch.cat([labels, labels, labels], dim=0)
-        labels = labels.unsqueeze(1).expand(batch_size, self.num_classes)
-        mask = labels.eq(classes.expand(batch_size, self.num_classes))
-
-        dist = distmat * mask.float()
-        loss = dist.clamp(min=1e-12, max=1e+12).sum() / batch_size * 1 / 64
-
-        return loss
-
-
-class MlpJSDLoss(nn.Module):
-    """Mlp JSD loss.
-
-    Args:
-        num_classes (int): number of classes.
-        feat_dim (int): feature dimension.
-    """
-
-    def __init__(self, in_feature, out_feature):
-        super(MlpJSDLoss, self).__init__()
-        self.fc = nn.Linear(in_feature, out_feature)
-
-    def forward(self, args, logits_all=None, features=None, targets=None, split=3, lambda_weight=12):
-        if args.jsd_layer == 'logits':
-            embedded = self.fc(logits_all)
-        elif args.jsd_layer == 'features':
-            embedded = self.fc(features)
-        logits_clean, logits_aug1, logits_aug2 = torch.chunk(embedded, split)
-
-        loss = jsd_temper(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
-
-        return loss
-
-
-class SupConLoss(nn.Module):
-    """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
-    It also supports the unsupervised contrastive loss in SimCLR"""
-    def __init__(self, temperature=0.07, contrast_mode='all',
-                 base_temperature=0.07):
-        super(SupConLoss, self).__init__()
-        self.temperature = temperature
-        self.contrast_mode = contrast_mode
-        self.base_temperature = base_temperature
-
-    def forward(self, features, labels=None, mask=None):
-        """Compute loss for model. If both `labels` and `mask` are None,
-        it degenerates to SimCLR unsupervised loss:
-        https://arxiv.org/pdf/2002.05709.pdf
-
-        Args:
-            features: hidden vector of shape [bsz, n_views, ...].
-            labels: ground truth of shape [bsz].
-            mask: contrastive mask of shape [bsz, bsz], mask_{i,j}=1 if sample j
-                has the same class as sample i. Can be asymmetric.
-        Returns:
-            A loss scalar.
-        """
-        device = (torch.device('cuda')
-                  if features.is_cuda
-                  else torch.device('cpu'))
-
-        if len(features.shape) < 3:
-            raise ValueError('`features` needs to be [bsz, n_views, ...],'
-                             'at least 3 dimensions are required')
-        if len(features.shape) > 3:
-            features = features.view(features.shape[0], features.shape[1], -1)
-
-        batch_size = features.shape[0]
-        if labels is not None and mask is not None:
-            raise ValueError('Cannot define both `labels` and `mask`')
-        elif labels is None and mask is None:
-            mask = torch.eye(batch_size, dtype=torch.float32).to(device)
-        elif labels is not None:
-            labels = labels.contiguous().view(-1, 1)
-            if labels.shape[0] != batch_size:
-                raise ValueError('Num of labels does not match num of features')
-            mask = torch.eq(labels, labels.T).float().to(device)
-        else:
-            mask = mask.float().to(device)
-
-        contrast_count = features.shape[1]
-        contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0)
-        if self.contrast_mode == 'one':
-            anchor_feature = features[:, 0]
-            anchor_count = 1
-        elif self.contrast_mode == 'all':
-            anchor_feature = contrast_feature
-            anchor_count = contrast_count
-        else:
-            raise ValueError('Unknown mode: {}'.format(self.contrast_mode))
-
-        # compute logits
-        anchor_dot_contrast = torch.div(
-            torch.matmul(anchor_feature, contrast_feature.T),
-            self.temperature)
-        # for numerical stability
-        logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
-        logits = anchor_dot_contrast - logits_max.detach()
-
-        # tile mask
-        mask = mask.repeat(anchor_count, contrast_count)
-        # mask-out self-contrast cases
-        logits_mask = torch.scatter(
-            torch.ones_like(mask),
-            1,
-            torch.arange(batch_size * anchor_count).view(-1, 1).to(device),
-            0
-        )
-        mask = mask * logits_mask
-
-        # compute log_prob
-        exp_logits = torch.exp(logits) * logits_mask
-        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
-
-        # compute mean of log-likelihood over positive
-        mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
-
-        # loss
-        loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
-        loss = loss.view(anchor_count, batch_size).mean()
-
-        return loss

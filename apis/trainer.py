@@ -5,7 +5,7 @@ import os
 import math
 
 from torchvision import transforms
-from losses import get_additional_loss, CenterLoss
+from losses import get_additional_loss
 from datasets.APR import mix_data
 
 def accuracy(output, target, topk=(1,)):

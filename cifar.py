@@ -78,7 +78,7 @@ def get_args_from_parser():
                                  'jsdv3.log.inv', 'jsdv3.inv',
                                  'jsdv3.msev1.0', 'jsdv3.msev1.0.detach',
                                  'jsdv3.cossim', 'jsdv3.simsiam', 'jsdv3.simsiamv0.1',
-                                 'jsdv3.ntxent', 'jsdv3.ntxent.diff',
+                                 'jsdv3.ntxent', 'jsdv3.ntxentv0.01', 'jsdv3.ntxentv0.02',
                                  'kl',
                                  'supconv0.01', 'supconv0.01_test', 'supconv0.01.diff',
                                  'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1', 'jsdv3_apr_p',
