@@ -185,9 +185,9 @@ def analysisv1_0(logits_clean, logits_aug1, logits_aug2=None, lambda_weight=12):
 
 
 def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
-    p_clean, p_aug1, p_aug2 = temper * temper * F.softmax(logits_clean / temper, dim=1),\
-                              temper * temper * F.softmax(logits_aug1 / temper, dim=1), \
-                              temper * temper * F.softmax(logits_aug2 / temper, dim=1)
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1),\
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                            F.softmax(logits_aug2 / temper, dim=1)
 
     # Clamp mixture distribution to avoid exploding KL divergence
     p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
@@ -195,7 +195,7 @@ def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
                     F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
                     F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
 
-    loss = lambda_weight * jsd_distance
+    loss = lambda_weight * temper * temper * jsd_distance
 
     features = {'jsd_distance': jsd_distance,
                 'p_clean': p_clean,
@@ -413,14 +413,14 @@ def jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, 
     mask_triuu = mask_triu - mask_same_instance
     mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
     mask_diff_class = 1 - mask_same_class  # [B, B]
-    p_clean, p_aug1, p_aug2 = temper * temper * F.softmax(logits_clean / temper, dim=1), \
-                              temper * temper * F.softmax(logits_aug1 / temper, dim=1), \
-                              temper * temper * F.softmax(logits_aug2 / temper, dim=1)
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
 
     jsd_matrix = get_jsd_matrix(p_clean, p_aug1, p_aug2)
 
     jsd_matrix_same_instance = jsd_matrix * mask_same_instance
-    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum()
+    jsd_distance = temper * temper * jsd_matrix_same_instance.sum() / mask_same_instance.sum()
 
     # jsd_distance2 = lambda_weight * jsd_distance
     # jsd_value = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=lambda_weight)
