@@ -687,6 +687,9 @@ class Trainer():
         wandb_features = dict()
         total_ce_loss, total_additional_loss = 0., 0.
         total_correct, total_pred_aug_correct, total_aug_correct = 0., 0., 0.
+        confusion_matrix = torch.zeros(10, 10)
+        confusion_matrix_aug1 = torch.zeros(10, 10)
+        confusion_matrix_pred_aug1 = torch.zeros(10, 10)
         data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
         lr = self.scheduler.get_lr()
         end = time.time()
@@ -737,7 +740,7 @@ class Trainer():
                 # for key, value in feat_feature.items():
                 #     new_key = 'feat_' + key
                 #     feature[new_key] = feat_feature[key].detach()
-
+                #
                 # for key, feature in self.net.module.hook_features.items():
                 #     feature_clean, feature_aug1, feature_aug2 = torch.split(feature[0], images[0].size(0))
                 #     additional_loss += get_additional_loss(self.args.additional_loss,
@@ -766,6 +769,13 @@ class Trainer():
                 total_aug_correct += (pred_aug1.eq(targets.data).sum().item() + pred_aug2.eq(
                     targets.data).sum().item()) / 2
                 acc1, acc5 = accuracy(logits_clean, targets, topk=(1, 5))
+
+                for t, p in zip(targets.view(-1), pred.view(-1)):
+                    confusion_matrix[t.long(), p.long()] += 1
+                for t, p in zip(targets.view(-1), pred_aug1.view(-1)):
+                    confusion_matrix_aug1[t.long(), p.long()] += 1
+                for t, p in zip(pred.view(-1), pred_aug1.view(-1)):
+                    confusion_matrix_pred_aug1[t.long(), p.long()] += 1
 
             loss.backward()
             self.optimizer.step()
@@ -816,7 +826,15 @@ class Trainer():
         # lr
         wandb_features['lr'] = float(lr[0])
 
-        return loss_ema, wandb_features  # acc1_ema, batch_ema
+        # confusion_matrices
+        train_cms = {'train/cm_pred': confusion_matrix,
+                     'train/cm_aug1': confusion_matrix_aug1,
+                     'train/cm_pred_aug1': confusion_matrix_pred_aug1}
+        # wandb_features['train/cm_pred'] = confusion_matrix
+        # wandb_features['train/cm_aug1'] = confusion_matrix_aug1
+        # wandb_features['train/cm_pred'] = confusion_matrix_pred_aug1
+
+        return loss_ema, wandb_features, train_cms  # acc1_ema, batch_ema
 
 
     def train_expand(self, data_loader):

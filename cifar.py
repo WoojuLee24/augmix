@@ -261,14 +261,24 @@ def main():
     ###########################
     elif args.analysis:
 
+        train_loss, train_acc, train_features, train_cms = tester.test_v2_trainer(train_loader)
+        wandb_logger.log_evaluate(dict(train_cms=train_cms))
+        #
         test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
-        test_c_acc, test_c_table, test_c_cm, test_c_features = tester.test_c_v2(test_dataset, base_c_path) # analyzie jsd distance of corrupted data
+        test_c_acc, test_c_table, test_c_cms, test_c_features = tester.test_c_v2(test_dataset, base_c_path) # analyzie jsd distance of corrupted data
         # test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)    # plot t-sne features
         print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+
+        # from utils.visualize import plot_confusion_matrix
+        # import matplotlib.pyplot as plt
+        # for key, value in test_c_cms.items():
+        #     test_c_plt = plot_confusion_matrix(value)
+        #     test_c_plt.savefig(f'/ws/data/log/cifar10/debug/{key}.png')
+
         wandb_logger.log_evaluate(dict(test_cm=test_cm,
                                        test_c_table=test_c_table,
                                        test_c_acc=test_c_acc,
-                                       test_c_cm=test_c_cm,
+                                       test_c_cms=test_c_cms,
                                        test_c_features=test_c_features
                                        ))
         return
@@ -318,14 +328,20 @@ def main():
             elif args.model == 'wrnauxbn':
                 train_loss_ema, train_features = trainer.train_auxbn(train_loader)
             else:
-                train_loss_ema, train_features = trainer.train(train_loader)
+                train_loss_ema, train_features, train_cms = trainer.train(train_loader)
             # train_loss_ema, train_features = trainer.train(train_loader)
 
-            wandb_logger.after_train_epoch(dict(train_features=train_features))
+            # wandb_logger.after_train_epoch(dict(train_features=train_features))
 
             test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
-            wandb_logger.after_test_epoch(dict(test_features=test_features, # wandb here
-                                               test_cm=test_cm))
+            # wandb_logger.after_test_epoch(dict(test_features=test_features, # wandb here
+            #                                    test_cm=test_cm))
+
+            wandb_logger.log_evaluate(dict(train_features=train_features,
+                                           train_cms=train_cms,
+                                           test_features=test_features,
+                                           test_cm=test_cm,
+                                           ))
 
             ### LOG ###
             is_best = test_acc > best_acc

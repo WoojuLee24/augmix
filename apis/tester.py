@@ -120,7 +120,8 @@ class Tester():
         """
         test_c_features, test_c_mean_features = dict(), defaultdict(float)
         wandb_table = pd.DataFrame(columns=CORRUPTIONS, index=['loss', 'error'])
-        confusion_matrices = []
+        confusion_matrices_mean = []
+        confusion_matrices = dict()
         import copy
         original_test_dataset = copy.deepcopy(test_dataset)
         original_test_dataset.data = np.load(base_path + 'clean' + '.npy')
@@ -154,7 +155,8 @@ class Tester():
                     test_c_mean_features[key] += value
 
                 corruption_accs.append(test_acc)
-                confusion_matrices.append(confusion_matrix.cpu().detach().numpy())
+                confusion_matrices_mean.append(confusion_matrix.cpu().detach().numpy())
+                confusion_matrices[f"test/{corruption}"] = confusion_matrix.cpu().detach().numpy()
                 print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
                     corruption, test_loss, 100 - 100. * test_acc))
 
@@ -163,8 +165,10 @@ class Tester():
 
             # return np.mean(corruption_accs), wandb_features
             test_c_acc = np.mean(corruption_accs)
-            test_c_cm = np.mean(confusion_matrices, axis=0)
-            return test_c_acc, wandb_table, test_c_cm, test_c_features
+            test_c_cm = np.mean(confusion_matrices_mean, axis=0)
+            confusion_matrices['test/corruption_mean'] = test_c_cm
+            test_c_cms = confusion_matrices
+            return test_c_acc, wandb_table, test_c_cms, test_c_features
         else:  # imagenet
             corruption_accs = {}
             for c in CORRUPTIONS:
@@ -261,4 +265,91 @@ class Tester():
         test_acc = total_correct / datasize
 
         return test_loss, test_acc, wandb_features, confusion_matrix
+
+
+    def test_v2_trainer(self, data_loader, data_type='clean'):
+        """Evaluate network on given concatenated dataset."""
+        self.net.eval()
+        total_loss, total_correct = 0., 0.
+        wandb_features = dict()
+        confusion_matrices = []
+        confusion_matrix = torch.zeros(10, 10)
+        confusion_matrix_aug1 = torch.zeros(10, 10)
+        confusion_matrix_aug2 = torch.zeros(10, 10)
+        confusion_matrix_pred_aug1 = torch.zeros(10, 10)
+        confusion_matrix_aug1_aug2 = torch.zeros(10, 10)
+        confusion_matrix_pred_aug2 = torch.zeros(10, 10)
+
+
+        tsne_features = []
+        with torch.no_grad():
+            for i, (images, targets) in enumerate(data_loader):
+                images_all = torch.cat(images, 0).to(self.device)
+                targets = targets.to(self.device)
+
+                logits_all = self.net(images_all)
+                logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
+                pred = logits_clean.data.max(1)[1]
+                pred_aug1 = logits_aug1.data.max(1)[1]
+                pred_aug2 = logits_aug2.data.max(1)[1]
+
+                additional_loss, feature = get_additional_loss(self.args,
+                                                               logits_clean, logits_aug1, logits_aug2,
+                                                               self.args.lambda_weight, targets, self.args.temper,
+                                                               self.args.reduction)
+
+
+                loss = F.cross_entropy(logits_clean, targets)
+                total_loss += float(loss.data)
+                total_correct += pred.eq(targets.data).sum().item()
+
+                if i == 0:
+                    for key, value in feature.items():
+                        # total_key = f'test/{data_type}_total_' + key
+                        # wandb_features[total_key] = feature[key].detach()
+                        wandb_features[key] = feature[key].detach()
+                else:
+                    # exclude terminal data for wandb_features: batch size is different.
+                    if logits_clean.size(0) == self.args.batch_size:
+                        for key, value in feature.items():
+                            # total_key = f'test/{data_type}_total_' + key
+                            # wandb_features[total_key] += feature[key].detach()
+                            wandb_features[key] += feature[key].detach()
+
+                for t, p in zip(targets.view(-1), pred.view(-1)):
+                    confusion_matrix[t.long(), p.long()] += 1
+                for t, p in zip(targets.view(-1), pred_aug1.view(-1)):
+                    confusion_matrix_aug1[t.long(), p.long()] += 1
+                for t, p in zip(targets.view(-1), pred_aug2.view(-1)):
+                    confusion_matrix_aug2[t.long(), p.long()] += 1
+                for t, p in zip(pred.view(-1), pred_aug1.view(-1)):
+                    confusion_matrix_pred_aug1[t.long(), p.long()] += 1
+                for t, p in zip(pred_aug1.view(-1), pred_aug2.view(-1)):
+                    confusion_matrix_aug1_aug2[t.long(), p.long()] += 1
+                for t, p in zip(pred.view(-1), pred_aug2.view(-1)):
+                    confusion_matrix_pred_aug2[t.long(), p.long()] += 1
+
+        confusion_matrices = {'train/cm_pred': confusion_matrix,
+                              'train/cm_aug1': confusion_matrix_aug1,
+                              'train/cm_aug2': confusion_matrix_aug2,
+                              'train/cm_pred_aug1': confusion_matrix_pred_aug1,
+                              'train/cm_pred_aug2': confusion_matrix_pred_aug2,
+                              'train/cm_aug1_aug2': confusion_matrix_aug1_aug2}
+        # logging total results
+        # features
+        denom = math.floor(len(data_loader.dataset) / self.args.batch_size)
+        for key, value in wandb_features.items():
+            wandb_features[key] = wandb_features[key] / denom
+        wandb_features['p_clean_sample'] = feature['p_clean']
+        wandb_features['p_aug1_sample'] = feature['p_aug1']
+
+        # loss
+        denom = len(data_loader.dataset) / self.args.batch_size
+        test_loss = total_loss / denom
+
+        # error
+        datasize = len(data_loader.dataset)
+        test_acc = total_correct / datasize
+
+        return test_loss, test_acc, wandb_features, confusion_matrices
 

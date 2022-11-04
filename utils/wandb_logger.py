@@ -118,7 +118,7 @@ class WandbLogger():
                     self.wandb.log({key: value})
             if 'test_cm' in wandb_input:
                 test_plt = plot_confusion_matrix(wandb_input['test_cm'])
-                self.wandb.log({'clean': test_plt})
+                self.wandb.log({'test/clean': test_plt})
             if 'test_c_table' in wandb_input:
                 test_c_table = self.wandb.Table(data=wandb_input['test_c_table'])
                 self.wandb.log({"test_c_results": test_c_table})
@@ -129,6 +129,14 @@ class WandbLogger():
             if 'test_c_cm' in wandb_input:
                 test_c_plt = plot_confusion_matrix(wandb_input['test_c_cm'])
                 self.wandb.log({'corruption': test_c_plt})
+            if 'test_c_cms' in wandb_input:
+                for key, value in wandb_input['test_c_cms'].items():
+                    test_c_plt = plot_confusion_matrix(value)
+                    self.wandb.log({key: test_c_plt})
+            if 'train_cms' in wandb_input:
+                for key, value in wandb_input['train_cms'].items():
+                    train_plt = plot_confusion_matrix(value)
+                    self.wandb.log({key: train_plt})
 
             # # 'tsne plot -> no figure saved: debug required'
             # if 'tsne_features' in wandb_input:
