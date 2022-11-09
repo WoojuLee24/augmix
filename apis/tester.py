@@ -1,6 +1,8 @@
 import os
 import torch
 import torch.nn.functional as F
+from torchvision import datasets
+from torchvision import transforms
 import pandas as pd
 import numpy as np
 from utils.utils import CORRUPTIONS
@@ -29,7 +31,7 @@ class Tester():
         wandb_features, wandb_plts = dict(), dict()
         wandb_table = pd.DataFrame(columns=CORRUPTIONS, index=['loss', 'error'])
         confusion_matrices = []
-        if self.args.dataset == 'cifar10' or 'cifar100':
+        if (self.args.dataset == 'cifar10') or (self.args.dataset == 'cifar100'):
             corruption_accs = []
             for corruption in CORRUPTIONS:
                 # Reference to original data is mutated
@@ -59,10 +61,22 @@ class Tester():
             return test_c_acc, wandb_table, test_c_cm
         else:  # imagenet
             corruption_accs = {}
+            mean = [0.485, 0.456, 0.406]
+            std = [0.229, 0.224, 0.225]
+            preprocess = transforms.Compose(
+                [transforms.ToTensor(),
+                 transforms.Normalize(mean, std)])
+            test_transform = transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                preprocess,
+            ])
             for c in CORRUPTIONS:
                 print(c)
                 for s in range(1, 6):
-                    valdir = os.path.join(self.args.corrupted_data, c, str(s))
+                    # valdir = os.path.join(self.args.corrupted_data, c, str(s))
+                    valdir = os.path.join(base_path, c, str(s))
+                    test_dataset = datasets.ImageFolder(valdir, test_transform)
                     val_loader = torch.utils.data.DataLoader(
                         test_dataset,
                         batch_size=self.args.eval_batch_size,
@@ -70,7 +84,7 @@ class Tester():
                         num_workers=self.args.num_workers,
                         pin_memory=True)
 
-                    loss, acc1, _, _ = self.test(val_loader)
+                    loss, acc1, _, confusion_matrix = self.test(val_loader)
                     if c in corruption_accs:
                         corruption_accs[c].append(acc1)
                     else:

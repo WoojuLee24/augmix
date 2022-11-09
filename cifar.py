@@ -310,6 +310,9 @@ def main():
         trainer = Trainer(net, args, optimizer, scheduler, wandb_logger=wandb_logger, additional_loss=additional_loss)
         best_acc = 0
         print('Beginning training from epoch:', start_epoch + 1)
+
+        test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
+
         for epoch in range(start_epoch, args.epochs):
             wandb_logger.before_train_epoch() # wandb here
             begin_time = time.time()
