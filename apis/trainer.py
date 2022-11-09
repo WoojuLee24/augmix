@@ -46,6 +46,11 @@ class Trainer():
         self.device = device
         self.additional_loss = additional_loss
 
+        if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
+            self.classes = 10
+        elif args.dataset == 'imagenet':
+            self.classes = 1000
+
     def __call__(self, data_loader):
         if self.args.additional_loss in ['center_loss', 'mlpjsd']:
             train_loss_ema, train_features = self.train2(data_loader)
@@ -328,7 +333,6 @@ class Trainer():
         wandb_features['lr'] = float(lr[0])
 
         return loss_ema, wandb_features  # acc1_ema, batch_ema
-
 
     # when using apr_p without jsdloss
     def train_apr_p(self, data_loader):
@@ -687,13 +691,20 @@ class Trainer():
         wandb_features = dict()
         total_ce_loss, total_additional_loss = 0., 0.
         total_correct, total_pred_aug_correct, total_aug_correct = 0., 0., 0.
-        confusion_matrix = torch.zeros(10, 10)
-        confusion_matrix_aug1 = torch.zeros(10, 10)
-        confusion_matrix_pred_aug1 = torch.zeros(10, 10)
+        confusion_matrix = torch.zeros(self.classes, self.classes)
+        confusion_matrix_aug1 = torch.zeros(self.classes, self.classes)
+        confusion_matrix_pred_aug1 = torch.zeros(self.classes, self.classes)
         data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
         lr = self.scheduler.get_lr()
         end = time.time()
         for i, (images, targets) in enumerate(data_loader):
+
+            if self.args.debug == True:
+                if i == 2:
+                    print("debug train epoch is terminated")
+                    break
+
+
             ''' Compute data loading time '''
             data_time = time.time() - end
             self.optimizer.zero_grad()

@@ -38,8 +38,8 @@ def get_args_from_parser():
                         default='imagenet',
                         choices=['imagenet'],
                         help='Choose ImageNet.')
-    parser.add_argument('clean_data', metavar='DIR', help='path to clean ImageNet dataset')
-    parser.add_argument('corrupted_data', metavar='DIR_C', help='path to ImageNet-C dataset')
+    parser.add_argument('--clean_data', default='/ws/data/imagenet', help='path to clean ImageNet dataset')
+    parser.add_argument('--corrupted_data', default='/ws/data/imagenet-c', help='path to ImageNet-C dataset')
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',

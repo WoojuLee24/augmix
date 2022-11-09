@@ -45,8 +45,8 @@ def get_args_from_parser():
     parser.add_argument('--dataset',
                         type=str,
                         default='cifar10',
-                        choices=['cifar10', 'cifar100'],
-                        help='Choose between CIFAR-10, CIFAR-100.')
+                        choices=['cifar10', 'cifar100', 'imagenet'],
+                        help='Choose between CIFAR-10, CIFAR-100, imagenet')
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',
@@ -114,7 +114,9 @@ def get_args_from_parser():
     parser.add_argument('--model', '-m',
                         type=str,
                         default='wrn',
-                        choices=['wrn', 'wrnauxbn', 'wrnexpand', 'wrnexpand2', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext'],
+                        choices=['wrn', 'wrnauxbn', 'wrnexpand', 'wrnexpand2', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext',
+                                 ### imagenet ###
+                                 'resnet50'],
                         help='Choose architecture.')
     ## WRN Architecture options
     parser.add_argument('--layers', default=40, type=int, help='total number of layers')

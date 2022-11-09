@@ -3,6 +3,7 @@ import torch
 from torchvision import transforms
 from torchvision import datasets
 
+import augmentations
 from .mixdataset import BaseDataset, AugMixDataset
 from .mixdataset_v2 import AugMixDataset_v2_0
 from .pixmix import RandomImages300K, PixMixDataset
@@ -49,13 +50,21 @@ def build_dataset(args, corrupted=False):
             base_c_path = f'{root_dir}/CIFAR-100-C/'
             num_classes = 100
         else: # imagenet
-            traindir = os.path.join(args.clean_data, 'train')
-            valdir = os.path.join(args.clean_data, 'val')
+            traindir = os.path.join(root_dir, 'train')
+            valdir = os.path.join(root_dir, 'val')
             train_dataset = datasets.ImageFolder(traindir, train_transform)
-            # train_dataset = AugMixDataset(train_dataset, preprocess)
             test_dataset = datasets.ImageFolder(valdir, test_transform)
-            base_c_path = None
-            num_classes = None
+            base_c_path = f'{root_dir}-c/'
+            num_classes = 1000
+            augmentations.IMAGE_SIZE = 224
+
+            # traindir = os.path.join(args.clean_data, 'train')
+            # valdir = os.path.join(args.clean_data, 'val')
+            # train_dataset = datasets.ImageFolder(traindir, train_transform)
+            # # train_dataset = AugMixDataset(train_dataset, preprocess)
+            # test_dataset = datasets.ImageFolder(valdir, test_transform)
+            # base_c_path = None
+            # num_classes = None
 
         aug = args.aug
         no_jsd = args.no_jsd

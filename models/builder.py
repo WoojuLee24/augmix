@@ -41,12 +41,12 @@ def build_net(args, num_classes):
         else: # args.model == 'wrn':  # default == 'wrn'
             net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
     else: # imagenet
-        if args.pretrained:
-            print("=> using pre-trained model '{}'".format(args.model))
-            net = models.__dict__[args.model](pretrained=True)
-        else:
-            print("=> creating model '{}'".format(args.model))
-            net = models.__dict__[args.model]()
+        # if args.pretrained:
+        #     print("=> using pre-trained model '{}'".format(args.model))
+        #     net = models.__dict__[args.model](pretrained=True)
+        # else:
+        print("=> creating model '{}'".format(args.model))
+        net = models.__dict__[args.model]()
 
     if args.additional_loss == 'supconv0.1':
         # net = SupConNet(net, head='mlp', in_feature=2048, out_feature=128)

@@ -16,6 +16,11 @@ class Tester():
         self.wandb_logger = wandb_logger
         self.device = device
 
+        if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
+            self.classes = 10
+        elif args.dataset == 'imagenet':
+            self.classes = 1000
+
     def __call__(self, data_loader):
         pass
 
@@ -80,7 +85,7 @@ class Tester():
         self.net.eval()
         total_loss, total_correct = 0., 0.
         wandb_features = dict()
-        confusion_matrix = torch.zeros(10, 10)
+        confusion_matrix = torch.zeros(self.classes, self.classes)
         tsne_features = []
         with torch.no_grad():
             for images, targets in data_loader:
@@ -104,6 +109,10 @@ class Tester():
 
                 for t, p in zip(targets.view(-1), pred.view(-1)):
                     confusion_matrix[t.long(), p.long()] += 1
+
+                if self.args.debug == True:
+                    print("debug test epoch is terminated")
+                    break
 
         datasize = len(data_loader.dataset)
         wandb_features['test/loss'] = total_loss / datasize
@@ -198,7 +207,7 @@ class Tester():
         self.net.eval()
         total_loss, total_correct = 0., 0.
         wandb_features = dict()
-        confusion_matrix = torch.zeros(10, 10)
+        confusion_matrix = torch.zeros(self.classes, self.classes)
         tsne_features = []
         with torch.no_grad():
             for i, (clean_data, corrupted_data) in enumerate(data_loader):
@@ -273,12 +282,12 @@ class Tester():
         total_loss, total_correct = 0., 0.
         wandb_features = dict()
         confusion_matrices = []
-        confusion_matrix = torch.zeros(10, 10)
-        confusion_matrix_aug1 = torch.zeros(10, 10)
-        confusion_matrix_aug2 = torch.zeros(10, 10)
-        confusion_matrix_pred_aug1 = torch.zeros(10, 10)
-        confusion_matrix_aug1_aug2 = torch.zeros(10, 10)
-        confusion_matrix_pred_aug2 = torch.zeros(10, 10)
+        confusion_matrix = torch.zeros(self.classes, self.classes)
+        confusion_matrix_aug1 = torch.zeros(self.classes, self.classes)
+        confusion_matrix_aug2 = torch.zeros(self.classes, self.classes)
+        confusion_matrix_pred_aug1 = torch.zeros(self.classes, self.classes)
+        confusion_matrix_aug1_aug2 = torch.zeros(self.classes, self.classes)
+        confusion_matrix_pred_aug2 = torch.zeros(self.classes, self.classes)
 
 
         tsne_features = []
