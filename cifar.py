@@ -209,9 +209,12 @@ def main():
     ### Hook layers ###
     ###################
     if args.hook:
-        hook = FeatureHook(["block1.layer.5.conv2",
-                            "block2.layer.5.conv2",
-                            "block3.layer.5.conv2"
+        hook = FeatureHook([
+                            "module.relu",
+                            "module.avgpool",
+                            "module.block1.layer.5.relu2",
+                            "module.block2.layer.5.relu2",
+                            "module.block3.layer.5.relu2"
                             ])
         hook.hook_multi_layer(net)
 
@@ -311,17 +314,11 @@ def main():
         best_acc = 0
         print('Beginning training from epoch:', start_epoch + 1)
 
-        test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
+        # test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
 
         for epoch in range(start_epoch, args.epochs):
             wandb_logger.before_train_epoch() # wandb here
             begin_time = time.time()
-            # train_loss_ema, train_features = trainer.train(train_loader, args, optimizer, scheduler)
-            # if args.additional_loss in ['jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
-            #                             'jsdv3.cossim', 'jsdv3.ntxent', 'jsdv3.ntxent.diff',
-            #                             'jsdv3.log.inv', 'jsdv3.inv',
-            #                             ]:
-            #     train_loss_ema, train_features = trainer.train3(train_loader, epoch)
             if args.additional_loss in ['jsdv3.simsiam', 'jsdv3.simsiamv0.1']:
                 train_loss_ema, train_features = trainer.train3_simsiam(train_loader, epoch)
             elif args.additional_loss == 'jsdv3_apr_p':
@@ -334,7 +331,6 @@ def main():
                 train_loss_ema, train_features = trainer.train_auxbn(train_loader)
             else:
                 train_loss_ema, train_features, train_cms = trainer.train(train_loader)
-            # train_loss_ema, train_features = trainer.train(train_loader)
 
             # wandb_logger.after_train_epoch(dict(train_features=train_features))
 
@@ -381,6 +377,8 @@ def main():
                         test_loss, 100 - 100. * test_acc))
 
         test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
+        # tsne
+        # test_tsne = tester.test_c(test_dataset, base_c_path)
         wandb_logger.after_run(dict(test_c_table=test_c_table,  # wandb here
                                     test_c_acc=test_c_acc,
                                     test_c_cm=test_c_cm))

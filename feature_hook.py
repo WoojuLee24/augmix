@@ -9,10 +9,10 @@ class FeatureHook(nn.Module):
     def hook_layer(self, model, selected_layer):
         def hook_function(module, grad_in, grad_out):
             # Gets output of the selected layer
-            if not selected_layer in model.hook_features:
-                model.hook_features[selected_layer] = []
+            if not selected_layer in model.module.hook_features:
+                model.module.hook_features[selected_layer] = []
 
-            model.hook_features[selected_layer].append(grad_out)
+            model.module.hook_features[selected_layer].append(grad_out)
 
         # Hook the selected layer
         for n, m in model.named_modules():

@@ -751,13 +751,18 @@ class Trainer():
                 # for key, value in feat_feature.items():
                 #     new_key = 'feat_' + key
                 #     feature[new_key] = feat_feature[key].detach()
-                #
-                # for key, feature in self.net.module.hook_features.items():
-                #     feature_clean, feature_aug1, feature_aug2 = torch.split(feature[0], images[0].size(0))
-                #     additional_loss += get_additional_loss(self.args.additional_loss,
-                #                                            feature_clean, feature_aug1, feature_aug2,
-                #                                            self.args.lambda_weight, targets, self.args.temper,
-                #                                            self.args.reduction)
+
+                for hkey, hfeature in self.net.module.hook_features.items():
+                    B = images[0].size(0)
+                    feature_clean, feature_aug1, feature_aug2 = torch.split(hfeature[0], images[0].size(0))
+                    feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), feature_aug1.view(B, -1), feature_aug2.view(B, -1)
+                    hook_additional_loss, hook_feature = get_additional_loss(self.args,
+                                                                         feature_clean, feature_aug1, feature_aug2,
+                                                                         self.args.lambda_weight, targets, self.args.temper,
+                                                                         self.args.reduction)
+                    for key, value in hook_feature.items():
+                        new_key = f'{hkey}_{key}'
+                        feature[new_key] = value.detach()
 
                 loss = ce_loss + additional_loss
                 total_ce_loss += float(ce_loss.data)

@@ -60,7 +60,8 @@ class Tester():
             test_c_cm = np.mean(confusion_matrices, axis=0)
             return test_c_acc, wandb_table, test_c_cm
         else:  # imagenet
-            corruption_accs = {}
+            corruption_accs = []
+
             mean = [0.485, 0.456, 0.406]
             std = [0.229, 0.224, 0.225]
             preprocess = transforms.Compose(
@@ -71,8 +72,11 @@ class Tester():
                 transforms.CenterCrop(224),
                 preprocess,
             ])
+
             for c in CORRUPTIONS:
                 print(c)
+                severity_accs = []
+                severity_losses = []
                 for s in range(1, 6):
                     # valdir = os.path.join(self.args.corrupted_data, c, str(s))
                     valdir = os.path.join(base_path, c, str(s))
@@ -85,14 +89,23 @@ class Tester():
                         pin_memory=True)
 
                     loss, acc1, _, confusion_matrix = self.test(val_loader)
-                    if c in corruption_accs:
-                        corruption_accs[c].append(acc1)
-                    else:
-                        corruption_accs[c] = [acc1]
+                    severity_accs.append(acc1)
+                    severity_losses.append(loss)
 
-                    print('\ts={}: Test Loss {:.3f} | Test Acc1 {:.3f}'.format(
-                        s, loss, 100. * acc1))
-            return corruption_accs
+                test_loss = np.mean(severity_losses)
+                test_acc = np.mean(severity_accs)
+                wandb_table[c]['loss'] = test_loss
+                wandb_table[c]['error'] = 100 - 100. * test_acc
+
+                corruption_accs.append(test_acc)
+                confusion_matrices.append(confusion_matrix.cpu().detach().numpy())
+                print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
+                    c, test_loss, 100 - 100. * test_acc))
+
+            test_c_acc = np.mean(corruption_accs)
+            test_c_cm = np.mean(confusion_matrices, axis=0)
+            return test_c_acc, wandb_table, test_c_cm
+
 
     def test(self, data_loader, data_type='clean'):
         """Evaluate network on given dataset."""
