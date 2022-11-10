@@ -266,6 +266,9 @@ def main():
     ###########################
     elif args.analysis:
 
+        # save false examples of corrupted data
+        # test_c_acc, test_c_table, test_c_cms = tester.test_c_save(test_dataset, base_c_path)
+
         train_loss, train_acc, train_features, train_cms = tester.test_v2_trainer(train_loader)
         wandb_logger.log_evaluate(dict(train_cms=train_cms))
         #
