@@ -198,9 +198,9 @@ def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
     loss = lambda_weight * temper * temper * jsd_distance
 
     features = {'jsd_distance': jsd_distance,
-                'p_clean': p_clean,
-                'p_aug1': p_aug1,
-                'p_aug2': p_aug2,
+                # 'p_clean': p_clean,
+                # 'p_aug1': p_aug1,
+                # 'p_aug2': p_aug2,
                 }
 
     return loss, features

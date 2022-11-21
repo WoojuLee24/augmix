@@ -148,6 +148,7 @@ class Tester():
         wandb_features['test/error'] = 100 - 100. * total_correct / datasize
         test_loss = total_loss / datasize
         test_acc = total_correct / datasize
+        confusion_matrix = confusion_matrix.detach().cpu().numpy()
         return test_loss, test_acc, wandb_features, confusion_matrix
 
 

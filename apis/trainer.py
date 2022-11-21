@@ -315,8 +315,8 @@ class Trainer():
         # features
         for key, value in wandb_features.items():
             wandb_features[key] = wandb_features[key] / denom
-        wandb_features['train/p_clean_sample'] = feature['p_clean']
-        wandb_features['train/p_aug1_sample'] = feature['p_aug1']
+        # wandb_features['train/p_clean_sample'] = feature['p_clean']
+        # wandb_features['train/p_aug1_sample'] = feature['p_aug1']
 
         denom = len(data_loader.dataset) / self.args.batch_size
         # loss
@@ -670,8 +670,8 @@ class Trainer():
         # features
         for key, value in wandb_features.items():
             wandb_features[key] = wandb_features[key] / denom
-        wandb_features['train/p_clean_sample'] = feature['p_clean']
-        wandb_features['train/p_aug1_sample'] = feature['p_aug1']
+        # wandb_features['train/p_clean_sample'] = feature['p_clean']
+        # wandb_features['train/p_aug1_sample'] = feature['p_aug1']
 
         denom = len(data_loader.dataset) / self.args.batch_size
         # loss
@@ -741,16 +741,6 @@ class Trainer():
                                                                logits_clean, logits_aug1, logits_aug2,
                                                                self.args.lambda_weight, targets, self.args.temper,
                                                                self.args.reduction)
-
-                # feature_clean, feature_aug1, feature_aug2 = torch.split(self.net.module.features, images[0].size(0))
-                # feat_additional_loss, feat_feature = get_additional_loss(self.args,
-                #                                                          feature_clean, feature_aug1, feature_aug2,
-                #                                                          self.args.lambda_weight, targets, self.args.temper,
-                #                                                          self.args.reduction)
-                #
-                # for key, value in feat_feature.items():
-                #     new_key = 'feat_' + key
-                #     feature[new_key] = feat_feature[key].detach()
 
                 for hkey, hfeature in self.net.module.hook_features.items():
                     B = images[0].size(0)
@@ -825,8 +815,8 @@ class Trainer():
         # features
         for key, value in wandb_features.items():
             wandb_features[key] = wandb_features[key] / denom
-        wandb_features['train/p_clean_sample'] = feature['p_clean']
-        wandb_features['train/p_aug1_sample'] = feature['p_aug1']
+        # wandb_features['train/p_clean_sample'] = feature['p_clean']
+        # wandb_features['train/p_aug1_sample'] = feature['p_aug1']
 
         denom = len(data_loader.dataset) / self.args.batch_size
         # loss
@@ -843,12 +833,9 @@ class Trainer():
         wandb_features['lr'] = float(lr[0])
 
         # confusion_matrices
-        train_cms = {'train/cm_pred': confusion_matrix,
-                     'train/cm_aug1': confusion_matrix_aug1,
-                     'train/cm_pred_aug1': confusion_matrix_pred_aug1}
-        # wandb_features['train/cm_pred'] = confusion_matrix
-        # wandb_features['train/cm_aug1'] = confusion_matrix_aug1
-        # wandb_features['train/cm_pred'] = confusion_matrix_pred_aug1
+        train_cms = {'train/cm_pred': confusion_matrix.detach().cpu().numpy(),
+                     'train/cm_aug1': confusion_matrix_aug1.detach().cpu().numpy(),
+                     'train/cm_pred_aug1': confusion_matrix_pred_aug1.detach().cpu().numpy()}
 
         return loss_ema, wandb_features, train_cms  # acc1_ema, batch_ema
 
@@ -962,8 +949,8 @@ class Trainer():
         # features
         for key, value in wandb_features.items():
             wandb_features[key] = wandb_features[key] / denom
-        wandb_features['train/p_clean_sample'] = feature['p_clean']
-        wandb_features['train/p_aug1_sample'] = feature['p_aug1']
+        # wandb_features['train/p_clean_sample'] = feature['p_clean']
+        # wandb_features['train/p_aug1_sample'] = feature['p_aug1']
 
         denom = len(data_loader.dataset) / self.args.batch_size
         # loss
