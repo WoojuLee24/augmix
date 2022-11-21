@@ -139,6 +139,7 @@ def get_args_from_parser():
 
     # Checkpointing options
     parser.add_argument('--save', '-s', type=str, default='/ws/data/log', help='Folder to save checkpoints.')
+    parser.add_argument('--save-every', '-se', type=bool, default=False, help='save checkpoints every time.')
     parser.add_argument('--resume', '-r', type=str, default='', help='Checkpoint path for resume / test.')
     parser.add_argument('--print-freq', type=int, default=50, help='Training loss print frequency (batches).')
 
@@ -183,7 +184,7 @@ def main():
         name = save_path.split("/")[-1]
 
     if args.wandb:
-        wandg_config = dict(project="Classification", entity='kaist-url-ai28', name=name)
+        wandg_config = dict(project="Classification", entity='kaist-url-ai28', name=name, resume=args.resume)
         wandb_logger = WandbLogger(wandg_config, args)
     else:
         wandb_logger = WandbLogger(None)
@@ -359,7 +360,10 @@ def main():
                 'optimizer': optimizer.state_dict(),
             }
 
-            save_path = os.path.join(args.save, 'checkpoint.pth.tar')
+            if not args.save_every:
+                save_path = os.path.join(args.save, 'checkpoint.pth.tar')
+            else:
+                save_path = os.path.join(args.save, f"checkpoint{epoch}.pth.tar")
             torch.save(checkpoint, save_path)
             if is_best:
                 shutil.copyfile(save_path, os.path.join(args.save, 'model_best.pth.tar'))

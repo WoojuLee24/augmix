@@ -38,7 +38,7 @@ def plot_confusion_matrix(cm,
     plt.yticks(tick_marks, classes)
 
     fmt = '.2f' if normalize else '.2f' #'d'
-    thresh = cm.max() / 2.
+    thresh = cm.max() / 2.p
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
             plt.text(j, i, format(cm[i, j], fmt),

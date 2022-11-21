@@ -1,5 +1,6 @@
 from utils import plot_confusion_matrix
 import pdb
+import pandas as pd
 
 class WandbLogger():
     def __init__(self,
@@ -52,8 +53,13 @@ class WandbLogger():
             if 'test_c_acc' in wandb_input:
                 self.wandb.log({"test/corruption_error: ": 100 - 100. * wandb_input['test_c_acc']})
             if 'test_c_cm' in wandb_input:
-                test_c_plt = plot_confusion_matrix(wandb_input['test_c_cm'])
-                self.wandb.log({'clean': test_c_plt})
+                if self.args.dataset == 'imagenet':
+                    # df = pd.DataFrame(wandb_input['test_c_cm'])
+                    test_c_cm = self.wandb.Table(data=wandb_input['test_c_cm'])
+                    self.wandb.log({'test_c_cm': test_c_cm})
+                else:
+                    test_c_plt = plot_confusion_matrix(wandb_input['test_c_cm'])
+                    self.wandb.log({'clean': test_c_plt})
 
             self.wandb.finish()
 
@@ -77,8 +83,12 @@ class WandbLogger():
                 for key, value in wandb_input['test_features'].items():
                     self.wandb.log({key: value})
             if 'test_cm' in wandb_input:
-                test_plt = plot_confusion_matrix(wandb_input['test_cm'])
-                self.wandb.log({'clean': test_plt})
+                if self.args.dataset == 'imagenet':
+                    test_cm = self.wandb.Table(data=wandb_input['test_cm'])
+                    self.wandb.log({'test_cm': test_cm})
+                else:
+                    test_plt = plot_confusion_matrix(wandb_input['test_cm'])
+                    self.wandb.log({'clean': test_plt})
 
     ############
     ### iter ###
@@ -117,8 +127,12 @@ class WandbLogger():
                 for key, value in wandb_input['test_c_features'].items():
                     self.wandb.log({key: value})
             if 'test_cm' in wandb_input:
-                test_plt = plot_confusion_matrix(wandb_input['test_cm'])
-                self.wandb.log({'test/clean': test_plt})
+                if self.args.dataset == 'imagenet':
+                    test_cm = self.wandb.Table(data=wandb_input['test_cm'])
+                    self.wandb.log({'test_cm': test_cm})
+                else:
+                    test_plt = plot_confusion_matrix(wandb_input['test_cm'])
+                    self.wandb.log({'test/clean': test_plt})
             if 'test_c_table' in wandb_input:
                 test_c_table = self.wandb.Table(data=wandb_input['test_c_table'])
                 self.wandb.log({"test_c_results": test_c_table})
@@ -127,16 +141,31 @@ class WandbLogger():
             if 'test_c_acc' in wandb_input:
                 self.wandb.log({"test/corruption_error: ": 100 - 100. * wandb_input['test_c_acc']})
             if 'test_c_cm' in wandb_input:
-                test_c_plt = plot_confusion_matrix(wandb_input['test_c_cm'])
-                self.wandb.log({'corruption': test_c_plt})
+                if self.args.dataset == 'imagenet':
+                    test_c_cm = self.wandb.Table(data=wandb_input['test_c_cm'])
+                    self.wandb.log({'test_c_cm': test_c_cm})
+                else:
+                    test_c_plt = plot_confusion_matrix(wandb_input['test_c_cm'])
+                    self.wandb.log({'corruption': test_c_plt})
             if 'test_c_cms' in wandb_input:
-                for key, value in wandb_input['test_c_cms'].items():
-                    test_c_plt = plot_confusion_matrix(value)
-                    self.wandb.log({key: test_c_plt})
+                if self.args.dataset == 'imagenet':
+                    for key, value in wandb_input['test_c_cms'].items():
+                        test_c_cm = self.wandb.Table(data=value)
+                        self.wandb.log({key: test_c_cm})
+
+                else:
+                    for key, value in wandb_input['test_c_cms'].items():
+                        test_c_plt = plot_confusion_matrix(value)
+                        self.wandb.log({key: test_c_plt})
             if 'train_cms' in wandb_input:
-                for key, value in wandb_input['train_cms'].items():
-                    train_plt = plot_confusion_matrix(value)
-                    self.wandb.log({key: train_plt})
+                if self.args.dataset == 'imagenet':
+                    for key, value in wandb_input['train_cms'].items():
+                        train_cm = self.wandb.Table(data=value)
+                        self.wandb.log({key: train_cm})
+                else:
+                    for key, value in wandb_input['train_cms'].items():
+                        train_plt = plot_confusion_matrix(value)
+                        self.wandb.log({key: train_plt})
 
             # # 'tsne plot -> no figure saved: debug required'
             # if 'tsne_features' in wandb_input:
