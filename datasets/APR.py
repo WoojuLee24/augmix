@@ -85,48 +85,6 @@ class APRecombination(object):   #apr-s
 #choice one of below when using jsd loss. it has a same result when not using jsd loss.
 
 
-# class AprS(torch.utils.data.Dataset):
-#     def __init__(self, dataset, apr_p, no_jsd=False):
-#         self.dataset = dataset
-#         self.no_jsd = no_jsd
-#         transforms_list = ([
-#             transforms.RandomApply([APRecombination()], p=1.0),
-#             transforms.RandomCrop(32, padding=4, fill=128),
-#             transforms.RandomHorizontalFlip(),
-#             transforms.ToTensor(),
-#         ])
-#         transforms_list_original = ([
-#             transforms.RandomCrop(32, padding=4, fill=128),
-#             transforms.RandomHorizontalFlip(),
-#             transforms.ToTensor(),
-#             transforms.Normalize([0.5] * 3, [0.5] * 3),
-#         ])
-#         if apr_p == 0:
-#             transforms_list.append(transforms.Normalize([0.5] * 3, [0.5] * 3))
-#
-#
-#         self.train_transform = transforms.Compose(transforms_list)
-#         self.train_transform_original = transforms.Compose(transforms_list_original)
-#
-#     def __getitem__(self, i):
-#         x, y = self.dataset[i]
-#         if self.no_jsd:
-#             return self.train_transform(x.copy()), y
-#
-#         else:
-#             original = self.train_transform_original(x.copy())
-#             aug1 = self.train_transform(x.copy())
-#             aug2 = self.train_transform(x.copy())
-#             im_tuple = (original, aug1, aug2)
-#             return im_tuple, y
-#
-#     def __len__(self):
-#         return len(self.dataset)
-
-
-
-
-
 class AprS(torch.utils.data.Dataset):
     def __init__(self, dataset, apr_p, no_jsd=False):
         self.dataset = dataset
@@ -137,27 +95,19 @@ class AprS(torch.utils.data.Dataset):
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
         ])
-        #when using jsd
-        transforms_common = ([
+        transforms_list_original = ([
             transforms.RandomCrop(32, padding=4, fill=128),
             transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            # transforms.Normalize([0.5] * 3, [0.5] * 3),
         ])
-        transforms_aug = ([transforms.RandomApply([APRecombination()], p=1.0),
-                           transforms.ToTensor(),])
-        transforms_original = ([transforms.ToTensor(),
-                                transforms.Normalize([0.5] * 3, [0.5] * 3)
-                                ])
-
-        if apr_p == 0:
+        if apr_p == False:
             transforms_list.append(transforms.Normalize([0.5] * 3, [0.5] * 3))
-
-            transforms_aug.append(transforms.Normalize([0.5] * 3, [0.5] * 3))
+            transforms_list_original.append(transforms.Normalize([0.5] * 3, [0.5] * 3))
 
 
         self.train_transform = transforms.Compose(transforms_list)
-        self.transforms_common = transforms.Compose(transforms_common)
-        self.transforms_aug = transforms.Compose(transforms_aug)
-        self.transforms_original = transforms.Compose(transforms_original)
+        self.train_transform_original = transforms.Compose(transforms_list_original)
 
     def __getitem__(self, i):
         x, y = self.dataset[i]
@@ -165,15 +115,66 @@ class AprS(torch.utils.data.Dataset):
             return self.train_transform(x.copy()), y
 
         else:
-            common = self.transforms_common(x.copy())
-            original = self.transforms_original(common.copy())
-            aug1 = self.transforms_aug(common.copy())
-            aug2 = self.transforms_aug(common.copy())
+            original = self.train_transform_original(x.copy())
+            aug1 = self.train_transform(x.copy())
+            aug2 = self.train_transform(x.copy())
             im_tuple = (original, aug1, aug2)
             return im_tuple, y
 
     def __len__(self):
         return len(self.dataset)
+
+
+
+
+
+# class AprS(torch.utils.data.Dataset):
+#     def __init__(self, dataset, apr_p, no_jsd=False):
+#         self.dataset = dataset
+#         self.no_jsd = no_jsd
+#         transforms_list = ([
+#             transforms.RandomApply([APRecombination()], p=1.0),
+#             transforms.RandomCrop(32, padding=4, fill=128),
+#             transforms.RandomHorizontalFlip(),
+#             transforms.ToTensor(),
+#         ])
+#         #when using jsd
+#         transforms_common = ([
+#             transforms.RandomCrop(32, padding=4, fill=128),
+#             transforms.RandomHorizontalFlip(),
+#         ])
+#         transforms_aug = ([transforms.RandomApply([APRecombination()], p=1.0),
+#                            transforms.ToTensor(),])
+#         transforms_original = ([transforms.ToTensor(),
+#                                 transforms.Normalize([0.5] * 3, [0.5] * 3)
+#                                 ])
+#
+#         if apr_p == 0:
+#             transforms_list.append(transforms.Normalize([0.5] * 3, [0.5] * 3))
+#
+#             transforms_aug.append(transforms.Normalize([0.5] * 3, [0.5] * 3))
+#
+#
+#         self.train_transform = transforms.Compose(transforms_list)
+#         self.transforms_common = transforms.Compose(transforms_common)
+#         self.transforms_aug = transforms.Compose(transforms_aug)
+#         self.transforms_original = transforms.Compose(transforms_original)
+#
+#     def __getitem__(self, i):
+#         x, y = self.dataset[i]
+#         if self.no_jsd:
+#             return self.train_transform(x.copy()), y
+#
+#         else:
+#             common = self.transforms_common(x.copy())
+#             original = self.transforms_original(common.copy())
+#             aug1 = self.transforms_aug(common.copy())
+#             aug2 = self.transforms_aug(common.copy())
+#             im_tuple = (original, aug1, aug2)
+#             return im_tuple, y
+#
+#     def __len__(self):
+#         return len(self.dataset)
 
 
 #apr-p

@@ -325,9 +325,9 @@ def main():
             begin_time = time.time()
             if args.additional_loss in ['jsdv3.simsiam', 'jsdv3.simsiamv0.1']:
                 train_loss_ema, train_features = trainer.train3_simsiam(train_loader, epoch)
-            elif args.additional_loss == 'jsdv3_apr_p':
-                train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
-            elif args.additional_loss == 'nojsd_apr_p':
+            # elif args.additional_loss == 'jsdv3_apr_p':
+            #     train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
+            elif args.apr_p == True:
                 train_loss_ema, train_features = trainer.train_apr_p(train_loader)
             elif args.model in ['wrnexpand', 'wrnexpand2']:
                 train_loss_ema, train_features = trainer.train_expand(train_loader)
