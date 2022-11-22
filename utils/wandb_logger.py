@@ -21,14 +21,14 @@ class WandbLogger():
             self.args = args
             self.import_wandb()
 
-        if self.args.dataset == 'imagenet':
-            with open("/ws/data/imagenet/imagenet_class_index.json", "r") as json_file:
-                class_dict = json.load(json_file)
-            self.class_list = []
-            for key, value in class_dict.items():
-                self.class_list.append(value[1])
-        else:
-            self.class_list = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
+            if self.args.dataset == 'imagenet':
+                with open("/ws/data/imagenet/imagenet_class_index.json", "r") as json_file:
+                    class_dict = json.load(json_file)
+                self.class_list = []
+                for key, value in class_dict.items():
+                    self.class_list.append(value[1])
+            else:
+                self.class_list = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
 
     def import_wandb(self):
         try:
