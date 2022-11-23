@@ -109,7 +109,7 @@ def get_args_from_parser():
 
     ## APR options
     parser.add_argument('--apr_p', action='store_true', help='recommend to do apr_p when using apr-s' )
-    parser.add_argument('--apr_mixed_coefficient', default=0.5, type=float, help='probability of using apr-p and apr-s')
+    parser.add_argument('--apr_mixed_coefficient', '-aprmc', default=0.5, type=float, help='probability of using apr-p and apr-s')
 
     # Model
     parser.add_argument('--model', '-m',
