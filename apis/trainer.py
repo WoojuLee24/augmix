@@ -822,12 +822,12 @@ class Trainer():
                     hook_additional_loss, hook_feature = get_additional_loss(self.args,
                                                                          feature_clean, feature_aug1, feature_aug2,
                                                                          self.args.lambda_weight, targets, self.args.temper,
-                                                                         self.args.reduction)
+                                                                         self.args.reduction, self.args.additional_loss_hook)
                     for key, value in hook_feature.items():
                         new_key = f'{hkey}_{key}'
                         feature[new_key] = value.detach()
 
-                loss = ce_loss + additional_loss
+                loss = ce_loss + additional_loss + hook_additional_loss
                 total_ce_loss += float(ce_loss.data)
                 total_additional_loss += float(additional_loss.data)
 

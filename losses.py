@@ -4,13 +4,20 @@ import torch.nn as nn
 
 
 def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
-                        lambda_weight=12, targets=None, temper=1, reduction='batchmean', **kwargs):
+                        lambda_weight=12, targets=None, temper=1, reduction='batchmean', additional_loss='none', **kwargs):
 
-    name = args.additional_loss
+    if additional_loss != 'none':
+        name = additional_loss
+    else:
+        name = args.additional_loss
+
     if name == 'none':
         loss = 0
     elif name == 'jsd':
         loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        return loss, features
+    elif name == 'jsd_norm':
+        loss, features = jsd_norm(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
         return loss, features
     elif name == 'jsd.manual':
         loss = jsd_manual(logits_clean, logits_aug1, logits_aug2, lambda_weight)
@@ -196,6 +203,34 @@ def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
                     F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
 
     loss = lambda_weight * temper * temper * jsd_distance
+
+    features = {'jsd_distance': jsd_distance,
+                # 'p_clean': p_clean,
+                # 'p_aug1': p_aug1,
+                # 'p_aug2': p_aug2,
+                }
+
+    return loss, features
+
+
+def jsd_norm(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
+
+    logits_clean = (logits_clean - logits_clean.mean()) / (logits_clean.std() + 1e-6)
+    logits_aug1 = (logits_aug1 - logits_aug1.mean()) / (logits_aug1.std() + 1e-6)
+    logits_aug2 = (logits_aug2 - logits_aug2.mean()) / (logits_aug2.std() + 1e-6)
+
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1),\
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                            F.softmax(logits_aug2 / temper, dim=1)
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+    jsd_distance = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+    # loss = lambda_weight * temper * temper * jsd_distance
+    loss = 0.1 * temper * temper * jsd_distance
 
     features = {'jsd_distance': jsd_distance,
                 # 'p_clean': p_clean,

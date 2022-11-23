@@ -89,6 +89,11 @@ def get_args_from_parser():
                                  'msev1.0', 'msev1.0.detach',
                                  ],
                         help='Type of additional loss')
+    parser.add_argument('--additional-loss-hook', '-alh',
+                        default='jsd',
+                        type=str,
+                        choices=['none', 'jsd', 'jsd.manual', 'jsd.manual.ce', 'jsd_temper', 'jsd_norm'],
+                        help='Type of additional loss hook')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
     parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
     parser.add_argument('--reduction', default='batchmean', type=str, choices=['batchmean', 'mean'],
