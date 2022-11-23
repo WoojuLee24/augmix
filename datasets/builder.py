@@ -91,7 +91,7 @@ def build_dataset(args, corrupted=False):
             train_dataset = PixMixDataset(train_dataset, mixing_set, {'normalize': normalize, 'tensorize': to_tensor},
                                           no_jsd=no_jsd, k=args.k, beta=args.beta, all_ops=args.all_ops, aug_severity=args.aug_severity)
         elif aug == 'apr_s':
-            train_dataset = AprS(train_dataset_apr, args.apr_p, no_jsd)
+            train_dataset = AprS(train_dataset_apr, args, no_jsd)
 
         return train_dataset, test_dataset, num_classes, base_c_path
 

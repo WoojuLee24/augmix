@@ -109,7 +109,7 @@ def get_args_from_parser():
 
     ## APR options
     parser.add_argument('--apr_p', action='store_true', help='recommend to do apr_p when using apr-s' )
-    parser.add_argument('--apr_mixed_coefficient', default=0.6, type=float, help='probability of using apr-p')
+    parser.add_argument('--apr_mixed_coefficient', default=0.5, type=float, help='probability of using apr-p and apr-s')
 
     # Model
     parser.add_argument('--model', '-m',
@@ -328,8 +328,8 @@ def main():
                 train_loss_ema, train_features = trainer.train3_simsiam(train_loader, epoch)
             # elif args.additional_loss == 'jsdv3_apr_p':
             #     train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
-            elif args.apr_p == True:
-                train_loss_ema, train_features = trainer.train_apr_p(train_loader)
+            elif (args.apr_p == True) or (args.aug == 'apr_s'):
+                train_loss_ema, train_features, train_cms = trainer.train_apr_p(train_loader)
             elif args.model in ['wrnexpand', 'wrnexpand2']:
                 train_loss_ema, train_features = trainer.train_expand(train_loader)
             elif args.model == 'wrnauxbn':

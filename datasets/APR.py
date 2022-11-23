@@ -33,7 +33,8 @@ def train_transforms():
     return transforms_list
 
 class APRecombination(object):   #apr-s
-    def __init__(self, img_size=32, aug=None):
+    def __init__(self, img_size=32, aug=None, prob=0.5):
+        self.prob = prob
         if aug is None:
             augmentations.IMAGE_SIZE = img_size
             self.aug_list = augmentations.augmentations
@@ -50,7 +51,7 @@ class APRecombination(object):   #apr-s
         x = op(x, 3)
 
         p = random.uniform(0, 1)
-        if p > 0.5:
+        if p > self.prob:   # default 0.5 -> 0.6
             return x        # x: one augmentation apply
 
         x_aug = x.copy()
@@ -86,11 +87,12 @@ class APRecombination(object):   #apr-s
 
 
 class AprS(torch.utils.data.Dataset):
-    def __init__(self, dataset, apr_p, no_jsd=False):
+    def __init__(self, dataset, args, no_jsd=False):
         self.dataset = dataset
         self.no_jsd = no_jsd
+        self.args = args
         transforms_list = ([
-            transforms.RandomApply([APRecombination()], p=1.0),
+            transforms.RandomApply([APRecombination(prob=args.apr_mixed_coefficient)], p=1.0),
             transforms.RandomCrop(32, padding=4, fill=128),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
@@ -101,7 +103,7 @@ class AprS(torch.utils.data.Dataset):
             transforms.ToTensor(),
             # transforms.Normalize([0.5] * 3, [0.5] * 3),
         ])
-        if apr_p == False:
+        if args.apr_p == False:
             transforms_list.append(transforms.Normalize([0.5] * 3, [0.5] * 3))
             transforms_list_original.append(transforms.Normalize([0.5] * 3, [0.5] * 3))
 

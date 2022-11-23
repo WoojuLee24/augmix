@@ -377,7 +377,7 @@ class Trainer():
             else:
                 if self.args.apr_p == True:
                     inputs = images[0]
-                    inputs_mix1 = mix_data(images[1], self.args.apr_mixed_coefficient)
+                    inputs_mix1 = mix_data(images[1], self.args.apr_mixed_coefficient)  # default apr_mixed_coefficient 0.6
                     inputs_mix2 = mix_data(images[2], self.args.apr_mixed_coefficient)
                     inputs, inputs_mixx1, inputs_mixx2 = transforms.Normalize([0.5] * 3, [0.5] * 3)(inputs), \
                                                          transforms.Normalize([0.5] * 3, [0.5] * 3)(inputs_mix1), \
