@@ -9,6 +9,7 @@ from models import MyDataParallel
 from third_party.ResNeXt_DenseNet.models.densenet import densenet
 from third_party.ResNeXt_DenseNet.models.resnext import resnext29
 from third_party.WideResNet_pytorch.wideresnet import WideResNet
+from third_party.WideResNet_pytorch.wideresnet_fc import WideResNetFc
 from third_party.WideResNet_pytorch.wideresnet_auxbn import WideResNetAuxBN
 from third_party.WideResNet_pytorch.wideresnet_expand import WideResNetExpand
 from third_party.WideResNet_pytorch.wideresnet_simsiam import WideResNetSimsiam
@@ -22,8 +23,10 @@ def build_net(args, num_classes):
     if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
         if args.model == 'densenet':
             net = densenet(num_classes=num_classes)
-        elif args.model == 'wrn' or 'wrnexpand2':
+        elif (args.model == 'wrn') or (args.model == 'wrnexpand2'):
             net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
+        elif args.model == 'wrnfc':
+            net = WideResNetFc(args.layers, num_classes, args.widen_factor, args.droprate)
         elif args.model == 'wrnauxbn':
             net = WideResNetAuxBN(args, args.layers, num_classes, args.widen_factor, args.droprate)
         elif args.model == 'wrnexpand':

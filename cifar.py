@@ -115,7 +115,7 @@ def get_args_from_parser():
     parser.add_argument('--model', '-m',
                         type=str,
                         default='wrn',
-                        choices=['wrn', 'wrnauxbn', 'wrnexpand', 'wrnexpand2', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext',
+                        choices=['wrn', 'wrnfc', 'wrnauxbn', 'wrnexpand', 'wrnexpand2', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext',
                                  ### imagenet ###
                                  'resnet50'],
                         help='Choose architecture.')
