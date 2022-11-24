@@ -53,7 +53,7 @@ class Tester():
                 # wandb_plts[corruption] = confusion_matrix
 
                 corruption_accs.append(test_acc)
-                confusion_matrices.append(confusion_matrix.cpu().detach().numpy())
+                confusion_matrices.append(confusion_matrix)
                 print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
                     corruption, test_loss, 100 - 100. * test_acc))
 
@@ -100,7 +100,7 @@ class Tester():
                 wandb_table[c]['error'] = 100 - 100. * test_acc
 
                 corruption_accs.append(test_acc)
-                confusion_matrices.append(confusion_matrix.cpu().detach().numpy())
+                confusion_matrices.append(confusion_matrix)
                 print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
                     c, test_loss, 100 - 100. * test_acc))
 
@@ -148,6 +148,7 @@ class Tester():
         wandb_features['test/error'] = 100 - 100. * total_correct / datasize
         test_loss = total_loss / datasize
         test_acc = total_correct / datasize
+        confusion_matrix = confusion_matrix.detach().cpu().numpy()
         return test_loss, test_acc, wandb_features, confusion_matrix
 
 
@@ -193,8 +194,8 @@ class Tester():
                     test_c_mean_features[key] += value
 
                 corruption_accs.append(test_acc)
-                confusion_matrices_mean.append(confusion_matrix.cpu().detach().numpy())
-                confusion_matrices[f"test/{corruption}"] = confusion_matrix.cpu().detach().numpy()
+                confusion_matrices_mean.append(confusion_matrix)
+                confusion_matrices[f"test/{corruption}"] = confusion_matrix
                 print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
                     corruption, test_loss, 100 - 100. * test_acc))
 
@@ -417,7 +418,7 @@ class Tester():
                 # wandb_plts[corruption] = confusion_matrix
 
                 corruption_accs.append(test_acc)
-                confusion_matrices.append(confusion_matrix.cpu().detach().numpy())
+                confusion_matrices.append(confusion_matrix)
                 print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
                     corruption, test_loss, 100 - 100. * test_acc))
 
@@ -464,7 +465,7 @@ class Tester():
                 wandb_table[c]['error'] = 100 - 100. * test_acc
 
                 corruption_accs.append(test_acc)
-                confusion_matrices.append(confusion_matrix.cpu().detach().numpy())
+                confusion_matrices.append(confusion_matrix)
                 print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
                     c, test_loss, 100 - 100. * test_acc))
 

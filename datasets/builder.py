@@ -22,6 +22,7 @@ def build_dataset(args, corrupted=False):
         train_transform = transforms.Compose([transforms.RandomHorizontalFlip(),
                                               transforms.RandomCrop(32, padding=4)])
         test_transform = preprocess
+
     else: #imagenet
         train_transform = transforms.Compose([transforms.RandomResizedCrop(224),
                                               transforms.RandomHorizontalFlip()])
@@ -30,7 +31,7 @@ def build_dataset(args, corrupted=False):
                                              preprocess])
 
     parent_dir = '/ws/data'
-    dir_name = 'cifar' if (dataset == 'cifar10' or dataset == 'cifar100') else 'imagenet'
+    dir_name = 'cifar' if (dataset == 'cifar10' or dataset == 'cifar100') else dataset
     root_dir = f'{parent_dir}/{dir_name}'
 
     if corrupted:
@@ -55,7 +56,7 @@ def build_dataset(args, corrupted=False):
             train_dataset = datasets.ImageFolder(traindir, train_transform)
             test_dataset = datasets.ImageFolder(valdir, test_transform)
             base_c_path = f'{root_dir}-c/'
-            num_classes = 1000
+            num_classes = 1000 if dataset == 'imagenet' else 100
             augmentations.IMAGE_SIZE = 224
 
             # traindir = os.path.join(args.clean_data, 'train')
@@ -91,7 +92,7 @@ def build_dataset(args, corrupted=False):
             train_dataset = PixMixDataset(train_dataset, mixing_set, {'normalize': normalize, 'tensorize': to_tensor},
                                           no_jsd=no_jsd, k=args.k, beta=args.beta, all_ops=args.all_ops, aug_severity=args.aug_severity)
         elif aug == 'apr_s':
-            train_dataset = AprS(train_dataset_apr, args.apr_p, no_jsd)
+            train_dataset = AprS(train_dataset_apr, args, no_jsd)
 
         return train_dataset, test_dataset, num_classes, base_c_path
 

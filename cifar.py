@@ -45,7 +45,7 @@ def get_args_from_parser():
     parser.add_argument('--dataset',
                         type=str,
                         default='cifar10',
-                        choices=['cifar10', 'cifar100', 'imagenet'],
+                        choices=['cifar10', 'cifar100', 'imagenet', 'imagenet100'],
                         help='Choose between CIFAR-10, CIFAR-100, imagenet')
     parser.add_argument('--aug', '-aug',
                         type=str,
@@ -78,6 +78,7 @@ def get_args_from_parser():
                                  'jsdv3.log.inv', 'jsdv3.inv',
                                  'jsdv3.msev1.0', 'jsdv3.msev1.1', 'jsdv3.msev1.0.detach',
                                  'jsdv3.cossim', 'jsdv3.simsiam', 'jsdv3.simsiamv0.1',
+                                 'jsd.ntxent', 'jsd.ntxentv0.01', 'jsd.ntxentv0.02',
                                  'jsdv3.ntxent', 'jsdv3.ntxentv0.01', 'jsdv3.ntxentv0.02', 'jsdv3.ntxent.detach',
                                  'kl',
                                  'supconv0.01', 'supconv0.01_test', 'supconv0.01.diff',
@@ -108,13 +109,13 @@ def get_args_from_parser():
 
     ## APR options
     parser.add_argument('--apr_p', action='store_true', help='recommend to do apr_p when using apr-s' )
-    parser.add_argument('--apr_mixed_coefficient', default=0.6, type=float, help='probability of using apr-p')
+    parser.add_argument('--apr_mixed_coefficient', '-aprmc', default=0.5, type=float, help='probability of using apr-p and apr-s')
 
     # Model
     parser.add_argument('--model', '-m',
                         type=str,
                         default='wrn',
-                        choices=['wrn', 'wrnauxbn', 'wrnexpand', 'wrnexpand2', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext',
+                        choices=['wrn', 'wrnfc', 'wrnauxbn', 'wrnexpand', 'wrnexpand2', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext',
                                  ### imagenet ###
                                  'resnet50'],
                         help='Choose architecture.')
@@ -139,6 +140,7 @@ def get_args_from_parser():
 
     # Checkpointing options
     parser.add_argument('--save', '-s', type=str, default='/ws/data/log', help='Folder to save checkpoints.')
+    parser.add_argument('--save-every', '-se', type=bool, default=False, help='save checkpoints every time.')
     parser.add_argument('--resume', '-r', type=str, default='', help='Checkpoint path for resume / test.')
     parser.add_argument('--print-freq', type=int, default=50, help='Training loss print frequency (batches).')
 
@@ -183,7 +185,7 @@ def main():
         name = save_path.split("/")[-1]
 
     if args.wandb:
-        wandg_config = dict(project="Classification", entity='kaist-url-ai28', name=name)
+        wandg_config = dict(project="Classification", entity='kaist-url-ai28', name=name, resume=args.resume)
         wandb_logger = WandbLogger(wandg_config, args)
     else:
         wandb_logger = WandbLogger(None)
@@ -324,10 +326,10 @@ def main():
             begin_time = time.time()
             if args.additional_loss in ['jsdv3.simsiam', 'jsdv3.simsiamv0.1']:
                 train_loss_ema, train_features = trainer.train3_simsiam(train_loader, epoch)
-            elif args.additional_loss == 'jsdv3_apr_p':
-                train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
-            elif args.additional_loss == 'nojsd_apr_p':
-                train_loss_ema, train_features = trainer.train_apr_p(train_loader)
+            # elif args.additional_loss == 'jsdv3_apr_p':
+            #     train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
+            elif (args.apr_p == True) or (args.aug == 'apr_s'):
+                train_loss_ema, train_features, train_cms = trainer.train_apr_p(train_loader)
             elif args.model in ['wrnexpand', 'wrnexpand2']:
                 train_loss_ema, train_features = trainer.train_expand(train_loader)
             elif args.model == 'wrnauxbn':
@@ -359,7 +361,10 @@ def main():
                 'optimizer': optimizer.state_dict(),
             }
 
-            save_path = os.path.join(args.save, 'checkpoint.pth.tar')
+            if not args.save_every:
+                save_path = os.path.join(args.save, 'checkpoint.pth.tar')
+            else:
+                save_path = os.path.join(args.save, f"checkpoint{epoch}.pth.tar")
             torch.save(checkpoint, save_path)
             if is_best:
                 shutil.copyfile(save_path, os.path.join(args.save, 'model_best.pth.tar'))
