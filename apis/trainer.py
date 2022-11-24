@@ -50,6 +50,8 @@ class Trainer():
             self.classes = 10
         elif args.dataset == 'imagenet':
             self.classes = 1000
+        elif args.dataset == 'imagenet100':
+            self.classes = 100
 
     def __call__(self, data_loader):
         if self.args.additional_loss in ['center_loss', 'mlpjsd']:

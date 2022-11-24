@@ -43,7 +43,13 @@ def build_net(args, num_classes):
             net = resnext29(num_classes=num_classes)
         else: # args.model == 'wrn':  # default == 'wrn'
             net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
-    else: # imagenet
+
+    elif args.dataset == 'imagenet100':
+        print("=> creating model '{}'".format(args.model))
+        net = models.__dict__[args.model]()
+        net.fc = nn.Linear(net.fc.in_features, num_classes)
+
+    elif args.dataset == 'imagenet':
         # if args.pretrained:
         #     print("=> using pre-trained model '{}'".format(args.model))
         #     net = models.__dict__[args.model](pretrained=True)

@@ -45,7 +45,7 @@ def get_args_from_parser():
     parser.add_argument('--dataset',
                         type=str,
                         default='cifar10',
-                        choices=['cifar10', 'cifar100', 'imagenet'],
+                        choices=['cifar10', 'cifar100', 'imagenet', 'imagenet100'],
                         help='Choose between CIFAR-10, CIFAR-100, imagenet')
     parser.add_argument('--aug', '-aug',
                         type=str,
