@@ -92,6 +92,7 @@ def get_args_from_parser():
                         help='Type of additional loss')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
     parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
+    parser.add_argument('--lambda-weight2', '-lw2', default=12.0, type=float, help='additional loss weight2')
     parser.add_argument('--reduction', default='batchmean', type=str, choices=['batchmean', 'mean'],
                         help='temperature scaling')
     parser.add_argument('--margin', default=0.02, type=float, help='triplet loss margin')
@@ -129,6 +130,10 @@ def get_args_from_parser():
 
     ## WRNAuxBN Architecture options
     parser.add_argument('--aux', default=3, type=str, help='AuxBN factor')
+
+    ## WRNFc Architecture options
+    parser.add_argument('--fcnoise', default='none', type=str, help='fc noise type: none, unoise, gnoise,..')
+    parser.add_argument('--fcnoise-s', default=0.1, type=float, help='fc nosise severity')
 
     # Optimization options
     parser.add_argument('--epochs', '-e', type=int, default=100, help='Number of epochs to train.')
@@ -216,7 +221,8 @@ def main():
                             "module.avgpool",
                             "module.block1.layer.5.relu2",
                             "module.block2.layer.5.relu2",
-                            "module.block3.layer.5.relu2"
+                            "module.block3.layer.5.relu2",
+                            'module.block3',
                             ])
         hook.hook_multi_layer(net)
 
@@ -269,15 +275,15 @@ def main():
     elif args.analysis:
 
         # save false examples of corrupted data
-        # test_c_acc, test_c_table, test_c_cms = tester.test_c_save(test_dataset, base_c_path)
+        test_c_acc, test_c_table, test_c_cms = tester.test_c_save(test_dataset, base_c_path)
 
-        train_loss, train_acc, train_features, train_cms = tester.test_v2_trainer(train_loader)
-        wandb_logger.log_evaluate(dict(train_cms=train_cms))
-        #
-        test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
-        test_c_acc, test_c_table, test_c_cms, test_c_features = tester.test_c_v2(test_dataset, base_c_path) # analyzie jsd distance of corrupted data
-        # test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)    # plot t-sne features
-        print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+        # train_loss, train_acc, train_features, train_cms = tester.test_v2_trainer(train_loader)
+        # wandb_logger.log_evaluate(dict(train_cms=train_cms))
+        # #
+        # test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
+        # test_c_acc, test_c_table, test_c_cms, test_c_features = tester.test_c_v2(test_dataset, base_c_path) # analyzie jsd distance of corrupted data
+        # # test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)    # plot t-sne features
+        # print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 
         # from utils.visualize import plot_confusion_matrix
         # import matplotlib.pyplot as plt
@@ -334,6 +340,8 @@ def main():
                 train_loss_ema, train_features = trainer.train_expand(train_loader)
             elif args.model == 'wrnauxbn':
                 train_loss_ema, train_features = trainer.train_auxbn(train_loader)
+            elif args.fcnoise != 'none':
+                train_loss_ema, train_features, train_cms = trainer.train_fcnoise(train_loader)
             else:
                 train_loss_ema, train_features, train_cms = trainer.train(train_loader)
 

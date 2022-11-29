@@ -134,7 +134,11 @@ class WideResNetFc(nn.Module):
         out = self.block1(out)
         out = self.block2(out)
         out = self.block3(out)
-        out = self.relu(self.bn(out))
+
+        return out
+
+    def pooling_features(self, x):
+        out = self.relu(self.bn(x))
         out = self.avgpool(out)
         out = out.view(-1, self.n_channels)
 
@@ -149,10 +153,24 @@ class WideResNetFc(nn.Module):
         return out
 
 
-    def forward(self, x, targets=None):
-        self.features = self.extract_features(x)
+    def forward(self, x, fcnoise=None, fcnoise_s=None, targets=None):
+        features = self.extract_features(x)
+
+        if fcnoise == 'unoise':
+            # channel noise
+            B, C, H, W = features.size()
+            noise = fcnoise_s * (2 * torch.rand(B, C).to('cuda') - 1)
+            noise = noise.unsqueeze(dim=2).unsqueeze(dim=3)
+            noise = noise.repeat((1, 1, H, W))
+            noise_npy = noise.detach().cpu().numpy()
+            features += noise
+
+        pooled_features = self.pooling_features(features)
         # logits = self.fc(self.features)
-        logits = self.classifier(self.features)
+        logits = self.classifier(pooled_features)
+
+
+
 
         if targets is not None:
             from utils.visualize import plot_tsne, multi_plot_tsne

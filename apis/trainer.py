@@ -915,6 +915,206 @@ class Trainer():
         return loss_ema, wandb_features, train_cms  # acc1_ema, batch_ema
 
 
+    def train_fcnoise(self, data_loader):
+        self.net.train()
+        wandb_features = dict()
+        total_ce_loss, total_additional_loss, total_noise_loss = 0., 0., 0.
+        total_correct, total_pred_aug_correct, total_aug_correct = 0., 0., 0.
+        total_noise_correct, total_pred_aug_noise_correct, total_aug_noise_correct = 0., 0., 0.
+        confusion_matrix = torch.zeros(self.classes, self.classes)
+        confusion_matrix_aug1 = torch.zeros(self.classes, self.classes)
+        confusion_matrix_pred_aug1 = torch.zeros(self.classes, self.classes)
+        confusion_matrix_noise = torch.zeros(self.classes, self.classes)
+        confusion_matrix_aug1_noise = torch.zeros(self.classes, self.classes)
+        confusion_matrix_pred_aug1_noise = torch.zeros(self.classes, self.classes)
+        data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
+        lr = self.scheduler.get_lr()
+        end = time.time()
+
+        for param in self.net.parameters():
+            param.requires_grad = False
+        for name, param in self.net.named_parameters():
+            if ('module.fc' in name) or ('module.bn' in name):
+                param.requires_grad = True
+
+        for i, (images, targets) in enumerate(data_loader):
+
+            if self.args.debug == True:
+                if i == 2:
+                    print("debug train epoch is terminated")
+                    break
+
+
+            ''' Compute data loading time '''
+            data_time = time.time() - end
+            self.optimizer.zero_grad()
+            if self.wandb_logger is not None:
+                self.wandb_logger.before_train_iter()
+            self.net.module.hook_features.clear()
+            if self.args.no_jsd or self.args.aug == 'none':
+                images, targets = images.to(self.device), targets.to(self.device)
+
+                logits = self.net(images)
+
+                self.wandb_input = self.net.get_wandb_input()
+
+                loss = F.cross_entropy(logits, targets)
+                pred = logits.data.max(1)[1]
+                total_ce_loss += float(loss.data)
+                total_additional_loss = 0.
+                total_correct += pred.eq(targets.data).sum().item()
+                acc1, acc5 = accuracy(logits, targets, topk=(1, 5))
+
+            else:
+                images_all = torch.cat(images, 0).to(self.device)
+                targets = targets.to(self.device)
+
+                logits_all = self.net(images_all) #, targets)
+                logits_all_noise = self.net(images_all, self.args.fcnoise, self.args.fcnoise_s) #, targets)
+                self.wandb_input = self.net.get_wandb_input()
+
+                logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
+                pred = logits_clean.data.max(1)[1]
+                pred_aug1 = logits_aug1.data.max(1)[1]
+                pred_aug2 = logits_aug2.data.max(1)[1]
+
+                logits_clean_noise, logits_aug1_noise, logits_aug2_noise = torch.split(logits_all_noise,
+                                                                                       images[0].size(0))
+                pred_noise = logits_clean_noise.data.max(1)[1]
+                pred_aug1_noise = logits_aug1_noise.data.max(1)[1]
+                pred_aug2_noise = logits_aug2_noise.data.max(1)[1]
+
+                noise_loss = self.args.lambda_weight2 * (
+                        F.mse_loss(logits_clean.detach(), logits_clean_noise) +
+                        F.mse_loss(logits_aug1.detach(), logits_aug1_noise) +
+                        F.mse_loss(logits_aug2.detach(), logits_aug2_noise)) / 3
+
+                ce_loss = F.cross_entropy(logits_clean, targets)
+
+                additional_loss, feature = get_additional_loss(self.args,
+                                                               logits_clean, logits_aug1, logits_aug2,
+                                                               self.args.lambda_weight, targets, self.args.temper,
+                                                               self.args.reduction)
+
+                for hkey, hfeature in self.net.module.hook_features.items():
+                    B = images[0].size(0)
+                    feature_clean, feature_aug1, feature_aug2 = torch.split(hfeature[0], images[0].size(0))
+                    feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), feature_aug1.view(B, -1), feature_aug2.view(B, -1)
+                    hook_additional_loss, hook_feature = get_additional_loss(self.args,
+                                                                         feature_clean, feature_aug1, feature_aug2,
+                                                                         self.args.lambda_weight, targets, self.args.temper,
+                                                                         self.args.reduction)
+                    for key, value in hook_feature.items():
+                        new_key = f'{hkey}_{key}'
+                        feature[new_key] = value.detach()
+
+                loss = ce_loss + additional_loss + noise_loss
+                total_ce_loss += float(ce_loss.data)
+                total_additional_loss += float(additional_loss.data)
+                total_noise_loss += float(noise_loss.data)
+
+                if i == 0:
+                    for key, value in feature.items():
+                        total_key = 'train/total_' + key
+                        wandb_features[total_key] = feature[key].detach()
+                else:
+                    # exclude terminal data for wandb_features: batch size is different.
+                    if logits_clean.size(0) == self.args.batch_size:
+                        for key, value in feature.items():
+                            total_key = 'train/total_' + key
+                            wandb_features[total_key] += feature[key].detach()
+
+                total_correct += pred.eq(targets.data).sum().item()
+                total_pred_aug_correct += (pred_aug1.eq(pred.data).sum().item() + pred_aug2.eq(
+                    pred.data).sum().item()) / 2
+                total_aug_correct += (pred_aug1.eq(targets.data).sum().item() + pred_aug2.eq(
+                    targets.data).sum().item()) / 2
+
+                total_noise_correct += pred.eq(pred_noise.data).sum().item()
+                total_pred_aug_noise_correct += (pred.eq(pred_aug1_noise.data).sum().item() +
+                                                 pred.eq(pred_aug2_noise.data).sum().item()) / 2
+                total_aug_noise_correct += (pred_aug1.eq(pred_aug1_noise.data).sum().item() +
+                                            pred_aug2.eq(pred_aug2_noise.data).sum().item()) / 2
+
+
+                acc1, acc5 = accuracy(logits_clean, targets, topk=(1, 5))
+
+                for t, p in zip(targets.view(-1), pred.view(-1)):
+                    confusion_matrix[t.long(), p.long()] += 1
+                for t, p in zip(targets.view(-1), pred_aug1.view(-1)):
+                    confusion_matrix_aug1[t.long(), p.long()] += 1
+                for t, p in zip(pred.view(-1), pred_aug1.view(-1)):
+                    confusion_matrix_pred_aug1[t.long(), p.long()] += 1
+                for t, p in zip(pred.view(-1), pred_noise.view(-1)):
+                    confusion_matrix_noise[t.long(), p.long()] += 1
+                for t, p in zip(pred_aug1.view(-1), pred_aug1_noise.view(-1)):
+                    confusion_matrix_aug1_noise[t.long(), p.long()] += 1
+                for t, p in zip(pred.view(-1), pred_aug1_noise.view(-1)):
+                    confusion_matrix_pred_aug1_noise[t.long(), p.long()] += 1
+
+            loss.backward()
+            self.optimizer.step()
+            self.scheduler.step()
+
+            batch_time = time.time() - end
+            end = time.time()
+
+            beta = 0.1 # TODO: what is the good beta value? 0.1(noisy and fast) or 0.9(smooth and slow)?
+            batch_ema = beta * batch_ema + (1-beta) * float(batch_time)
+            data_ema = beta * data_ema + (1-beta) * float(data_time)
+            loss_ema = beta * loss_ema + (1-beta) * float(loss)
+            acc1_ema = beta * acc1_ema + (1-beta) * float(acc1)
+            acc5_ema = beta * acc5_ema + (1-beta) * float(acc5)
+
+            if i % self.args.print_freq == 0:
+                print(
+                    'Batch {}/{}: Data Time {:.3f} | Batch Time {:.3f} | Train Loss {:.3f} | Train Acc1 '
+                    '{:.3f} | Train Acc5 {:.3f}'.format(i, len(data_loader), data_ema,
+                                                        batch_ema, loss_ema, acc1_ema,
+                                                        acc5_ema))
+            if i % self.args.log_freq == 0:
+                self.wandb_input['loss'] = float(loss)
+                self.wandb_input['acc1'] = float(acc1)
+                self.wandb_input['acc5'] = float(acc5)
+                if self.wandb_logger is not None:
+                    self.wandb_logger.after_train_iter(self.wandb_input)
+
+        # logging total results
+        denom = math.floor(len(data_loader.dataset) / self.args.batch_size)
+        # features
+        for key, value in wandb_features.items():
+            wandb_features[key] = wandb_features[key] / denom
+        # wandb_features['train/p_clean_sample'] = feature['p_clean']
+        # wandb_features['train/p_aug1_sample'] = feature['p_aug1']
+
+        denom = len(data_loader.dataset) / self.args.batch_size
+        # loss
+        wandb_features['train/ce_loss'] = total_ce_loss / denom
+        wandb_features['train/additional_loss'] = total_additional_loss / denom
+        wandb_features['train/noise_loss'] = total_noise_loss / denom
+        wandb_features['train/loss'] = (total_ce_loss + total_additional_loss) / denom
+
+        # error
+        wandb_features['train/error'] = 100 - 100. * total_correct / len(data_loader.dataset)
+        wandb_features['train/aug_error'] = 100 - 100. * total_aug_correct / len(data_loader.dataset)
+        wandb_features['train/pred_aug_error'] = 100 - 100. * total_pred_aug_correct / len(data_loader.dataset)
+
+        # noise error
+        wandb_features['train/noise_error'] = 100 - 100. * total_noise_correct / len(data_loader.dataset)
+        wandb_features['train/aug_noise_error'] = 100 - 100. * total_aug_noise_correct / len(data_loader.dataset)
+        wandb_features['train/pred_aug_noise_error'] = 100 - 100. * total_pred_aug_noise_correct / len(data_loader.dataset)
+
+        # lr
+        wandb_features['lr'] = float(lr[0])
+
+        # confusion_matrices
+        train_cms = {'train/cm_pred': confusion_matrix.detach().cpu().numpy(),
+                     'train/cm_aug1': confusion_matrix_aug1.detach().cpu().numpy(),
+                     'train/cm_pred_aug1': confusion_matrix_pred_aug1.detach().cpu().numpy()}
+
+        return loss_ema, wandb_features, train_cms  # acc1_ema, batch_ema
+
+
     def train_expand(self, data_loader):
         self.net.train()
         wandb_features = dict()

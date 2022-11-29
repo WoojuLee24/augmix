@@ -134,11 +134,14 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
 
     # kl_div
     elif name == 'klv1.0':
-        loss = kl_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        loss, features = kl_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        return loss, features
     elif name == 'klv1.1':
-        loss = kl_v1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        loss, features = kl_v1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        return loss, features
     elif name == 'klv1.2':
-        loss = kl_v1_2(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        loss, features = kl_v1_2(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        return loss, features
     elif name == 'klv1.0.detach':
         loss = kl_v1_0_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'klv1.1.detach':
@@ -1987,7 +1990,16 @@ def kl_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0
                             F.kl_div(p_aug2_log, p_aug1, reduction='batchmean') +
                             F.kl_div(p_aug1_log, p_aug2, reduction='batchmean')) / 6.
 
-    return loss
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+    jsd_distance = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+    features = {'jsd_distance': jsd_distance.detach(),
+                }
+
+    return loss, features
 
 
 def kl_v1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
@@ -2004,7 +2016,17 @@ def kl_v1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0
                             F.kl_div(p_aug2_log, p_clean, reduction='batchmean') +
                             F.kl_div(p_aug2_log, p_aug1, reduction='batchmean') +
                             F.kl_div(p_aug1_log, p_aug2, reduction='batchmean')) / 4.
-    return loss
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+    jsd_distance = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+    features = {'jsd_distance': jsd_distance.detach(),
+                }
+
+    return loss, features
 
 
 def kl_v1_2(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
@@ -2019,7 +2041,17 @@ def kl_v1_2(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0
     # Clamp mixture distribution to avoid exploding KL divergence
     loss = lambda_weight * (F.kl_div(p_aug1_log, p_clean, reduction='batchmean') +
                             F.kl_div(p_aug2_log, p_clean, reduction='batchmean')) / 2.
-    return loss
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+    jsd_distance = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+    features = {'jsd_distance': jsd_distance.detach(),
+                }
+
+    return loss, features
 
 
 def kl_v1_0_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
