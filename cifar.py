@@ -68,6 +68,7 @@ def get_args_from_parser():
                         default='jsd',
                         type=str,
                         choices=['none', 'jsd', 'jsd.manual', 'jsd.manual.ce','jsd_temper',
+                                 'jsd.skew',
                                  'analysisv1.0',
                                  'jsdv1',
                                  'jsdv2', 'jsdv2.1',
@@ -84,7 +85,7 @@ def get_args_from_parser():
                                  'supconv0.01', 'supconv0.01_test', 'supconv0.01.diff',
                                  'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1', 'jsdv3_apr_p',
                                  'nojsd_apr_p',
-                                 'klv1.0', 'klv1.1', 'klv1.2',
+                                 'klv1.0', 'klv1.1', 'klv1.2', 'klv1.3',
                                  'klv1.0.detach', 'klv1.1.detach', 'klv1.2.detach',
                                  'klv1.0.inv', 'klv1.1.inv', 'klv1.2.inv',
                                  'msev1.0', 'msev1.0.detach',
@@ -93,6 +94,9 @@ def get_args_from_parser():
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
     parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
     parser.add_argument('--lambda-weight2', '-lw2', default=12.0, type=float, help='additional loss weight2')
+
+    parser.add_argument('--skew', default=0.8, type=float, help='skew parameter for logit')
+
     parser.add_argument('--reduction', default='batchmean', type=str, choices=['batchmean', 'mean'],
                         help='temperature scaling')
     parser.add_argument('--margin', default=0.02, type=float, help='triplet loss margin')
