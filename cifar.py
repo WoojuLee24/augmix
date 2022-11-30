@@ -190,7 +190,7 @@ def main():
         name = save_path.split("/")[-1]
 
     if args.wandb:
-        wandg_config = dict(project="Classification", entity='kaist-url-ai28', name=name, resume=args.resume)
+        wandg_config = dict(project="Classification", entity='kaist-url-ai28', name=name,)#  resume=args.resume)
         wandb_logger = WandbLogger(wandg_config, args)
     else:
         wandb_logger = WandbLogger(None)
@@ -236,6 +236,7 @@ def main():
         weight_decay=args.decay,
         nesterov=True)
 
+
     ##############
     ### Resume ###
     ##############
@@ -247,7 +248,29 @@ def main():
             best_acc = checkpoint['best_acc']
             net.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
+
             print('Model restored from epoch:', start_epoch)
+
+    #################
+    ### Scheduler ###
+    #################
+
+    if args.resume:
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
+                step,
+                (args.epochs - start_epoch) * len(train_loader),
+                0.01,  # lr_lambda computes multiplicative factor
+                1e-6 / args.learning_rate))
+    else:
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
+                step,
+                args.epochs * len(train_loader),
+                1,  # lr_lambda computes multiplicative factor
+                1e-6 / args.learning_rate))
 
     #########################
     ### IF: Evaluate mode ###
@@ -302,14 +325,14 @@ def main():
     ### ELSE: Train mode ###
     ########################
     else:
-        ### Scheduler ###
-        scheduler = torch.optim.lr_scheduler.LambdaLR(
-            optimizer,
-            lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
-                step,
-                args.epochs * len(train_loader),
-                1,  # lr_lambda computes multiplicative factor
-                1e-6 / args.learning_rate))
+        # ### Scheduler ###
+        # scheduler = torch.optim.lr_scheduler.LambdaLR(
+        #     optimizer,
+        #     lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
+        #         step,
+        #         args.epochs * len(train_loader),
+        #         1,  # lr_lambda computes multiplicative factor
+        #         1e-6 / args.learning_rate))
 
         if not os.path.exists(args.save):
             os.makedirs(args.save)
@@ -338,8 +361,8 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_apr_p(train_loader)
             elif args.model in ['wrnexpand', 'wrnexpand2']:
                 train_loss_ema, train_features = trainer.train_expand(train_loader)
-            elif args.model == 'wrnauxbn':
-                train_loss_ema, train_features = trainer.train_auxbn(train_loader)
+            # elif args.model == 'wrnauxbn':
+            #     train_loss_ema, train_features = trainer.train_auxbn(train_loader)
             elif args.fcnoise != 'none':
                 train_loss_ema, train_features, train_cms = trainer.train_fcnoise(train_loader)
             else:
