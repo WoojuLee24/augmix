@@ -12,6 +12,9 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     elif name == 'jsd':
         loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
         return loss, features
+    elif name == 'jsd.skew':
+        loss, features = jsd_skew(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, args.skew)
+        return loss, features
     elif name == 'jsd.manual':
         loss = jsd_manual(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsd.manual.ce':
@@ -229,13 +232,13 @@ def jsd_skew(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.
                               F.softmax(logits_aug1 / temper, dim=1), \
                             F.softmax(logits_aug2 / temper, dim=1)
 
-    p_clean_skew = skew * p_clean
-    p_aug1_skew = (1 - skew) / 2 * p_aug1
-    p_aug2_skew = (1 - skew) / 2 * p_aug2
+    # p_clean_skew = skew * p_clean
+    p_aug1_skew = (1 - skew) * p_aug1 + skew * p_clean
+    p_aug2_skew = (1 - skew) * p_aug2 + skew * p_clean
 
     # Clamp mixture distribution to avoid exploding KL divergence
-    p_mixture = torch.clamp((p_clean_skew + p_aug1_skew + p_aug2_skew) / 3., 1e-7, 1).log()
-    jsd_distance_skew = (F.kl_div(p_mixture, p_clean_skew, reduction='batchmean') +
+    p_mixture = torch.clamp((p_clean + p_aug1_skew + p_aug2_skew) / 3., 1e-7, 1).log()
+    jsd_distance_skew = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
                     F.kl_div(p_mixture, p_aug1_skew, reduction='batchmean') +
                     F.kl_div(p_mixture, p_aug2_skew, reduction='batchmean')) / 3.
 
