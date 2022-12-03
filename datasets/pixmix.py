@@ -81,7 +81,7 @@ class PixMixDataset(torch.utils.data.Dataset):
             return pixmix(x, mixing_pic, self.preprocess, self.k, self.beta, self.all_ops, self.aug_severity), y
         else:
             tensorize, normalize = self.preprocess['tensorize'], self.preprocess['normalize']
-            original = tensorize(x)
+            original = normalize(tensorize(x))
 
             rnd_idx = np.random.choice(len(self.mixing_set))
             mixing_pic, _ = self.mixing_set[rnd_idx]
