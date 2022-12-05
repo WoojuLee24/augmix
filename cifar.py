@@ -96,7 +96,7 @@ def get_args_from_parser():
                         default='jsd',
                         type=str,
                         choices=['none', 'jsd',
-                                 'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02'
+                                 'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02', 'jsdv4.ntxent.detach'
                                  ],
                         help='Type of additiona loss2')
 
