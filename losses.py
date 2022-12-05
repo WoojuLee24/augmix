@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-
 def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
                         lambda_weight=12, targets=None, temper=1, reduction='batchmean', **kwargs):
 
@@ -28,6 +27,8 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     elif name == 'jsdv3':
         loss, features = jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
+    elif name == 'jsdv4':
+        loss, features = jsdv4(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
     elif name == 'jsdv3.test':
         loss, features = jsdv3_test(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
@@ -435,7 +436,7 @@ def make_matrix(p, q, criterion, reduction='none'):
     # 3. Do reduction
     if reduction == 'none':
         matrix = matrix.reshape(B, B, -1)
-    elif reduction == 'batchmean' or reduction == 'mean':
+    elif reduction == 'mean':
         matrix = torch.mean(matrix, dim=-1)
         matrix = matrix.reshape(B, B)
     elif reduction == 'sum':
@@ -497,6 +498,71 @@ def jsdv3(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, 
                 'p_clean': p_clean,
                 'p_aug1': p_aug1,
                 'p_aug2': p_aug2,
+                }
+
+    return loss, features
+
+
+def jsdv4(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None):
+    '''
+    JSD matrix loss
+    version 5
+    matrix with nn.module loss function by dazory
+    detach sum function to break gradient
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+
+
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+
+    jsd_matrix = (make_matrix(p_clean, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum') + \
+                  make_matrix(p_aug1, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum') + \
+                  make_matrix(p_aug2, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum')) / 3.
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum().detach()
+
+    # jsd_distance2 = lambda_weight * jsd_distance
+    # jsd_value = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=lambda_weight)
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum().detach()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum().detach()
+
+    loss = lambda_weight * jsd_distance
+
+    # jsd_debug = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=lambda_weight)
+
+    features = {'jsd_distance': jsd_distance,
+                'jsd_distance_diff_class': jsd_distance_diff_class,
+                'jsd_distance_same_class': jsd_distance_same_class,
+                # 'jsd_matrix': jsd_matrix,
+                # 'p_clean': p_clean,
+                # 'p_aug1': p_aug1,
+                # 'p_aug2': p_aug2,
                 }
 
     return loss, features
