@@ -1658,7 +1658,7 @@ def jsd_ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=
     jsd_matrix_same_class = jsd_matrix * mask_same_triuu
     jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
 
-    loss = 12 * jsd_distance_loss + ntxent_loss
+    loss = 12 * jsd_distance_loss + lambda_weight * ntxent_loss
     triplet_loss = ntxent_loss
 
     features = {'jsd_distance_loss': jsd_distance_loss,
@@ -1721,7 +1721,7 @@ def jsd_ntxentv0_01(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, te
     jsd_matrix_same_class = jsd_matrix * mask_same_triuu
     jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
 
-    loss = 12 * jsd_distance_loss + ntxent_loss
+    loss = 12 * jsd_distance_loss + lambda_weight * ntxent_loss
     triplet_loss = ntxent_loss
 
     features = {'jsd_distance_loss': jsd_distance_loss,
@@ -1784,7 +1784,7 @@ def jsd_ntxentv0_02(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, te
     jsd_matrix_same_class = jsd_matrix * mask_same_triuu
     jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum()
 
-    loss = 12 * jsd_distance_loss + ntxent_loss
+    loss = 12 * jsd_distance_loss + lambda_weight * ntxent_loss
     triplet_loss = ntxent_loss
 
     features = {'jsd_distance_loss': jsd_distance_loss,
@@ -2445,7 +2445,6 @@ def supcontrast(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weig
     # loss
     loss = - (temper / base_temper) * mean_log_prob_pos
     loss = loss.view(anchor_count, batch_size).mean()
-    loss *= lambda_weight
 
     return loss
 
