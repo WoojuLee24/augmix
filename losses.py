@@ -29,6 +29,7 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         return loss, features
     elif name == 'jsdv4':
         loss, features = jsdv4(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
+        return loss, features
     elif name == 'jsdv3.test':
         loss, features = jsdv3_test(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets)
         return loss, features
