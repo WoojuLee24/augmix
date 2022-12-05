@@ -2,6 +2,8 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
+
+
 def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
                         lambda_weight=12, targets=None, temper=1, reduction='batchmean', **kwargs):
 
@@ -173,6 +175,27 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         return loss, features
 
     return loss
+
+
+def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
+                        lambda_weight=12, targets=None, temper=1, reduction='batchmean', **kwargs):
+
+    name = args.additional_loss2
+    if name == 'none':
+        loss, features = 0, dict()
+    elif name == 'jsd':
+        loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+    elif name == 'jsdv4.ntxent':
+        margin = args.margin
+        loss, features = jsdv4_ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+    elif name == 'jsdv4.ntxentv0.01':
+        margin = args.margin
+        loss, features = jsdv4_ntxentv0_01(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+    elif name == 'jsdv4.ntxentv0.02':
+        margin = args.margin
+        loss, features = jsdv4_ntxentv0_02(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+    return loss, features
+
 
 def analysisv1_0(logits_clean, logits_aug1, logits_aug2=None, lambda_weight=12):
 
@@ -2530,7 +2553,6 @@ def supcontrast_detach(logits_clean, logits_aug1, logits_aug2, labels=None, lamb
     # loss
     loss = - (temper / base_temper) * mean_log_prob_pos
     loss = loss.view(anchor_count, batch_size).mean()
-    loss *= lambda_weight
 
     return loss
 
@@ -2625,7 +2647,6 @@ def supcontrast_test(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
     # loss
     loss = - (temper / base_temper) * mean_log_prob_pos
     loss = loss.view(anchor_count, batch_size).mean()
-    loss *= lambda_weight
 
     return loss
 
@@ -2674,10 +2695,9 @@ def supcontrastv0_01(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
     loss2 = supcontrast_maskv0_01(logits_clean, logits_aug2, targets, mask_same_class, mask_identical, lambda_weight, temper)
     loss3 = supcontrast_maskv0_01(logits_aug1, logits_aug2, targets, mask_same_class, mask_identical, lambda_weight, temper)
 
-    loss = lambda_weight * (loss1 + loss2 + loss3) / 3
+    loss = (loss1 + loss2 + loss3) / 3
 
     return loss
-
 
 
 def supcontrastv0_02(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=0.1, temper=0.07, reduction='batchmean'):
@@ -2710,10 +2730,9 @@ def supcontrastv0_02(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
     loss2 = supcontrast_maskv0_01(logits_clean, logits_aug2, targets, mask_same_instance, mask_same_instance_diff_class, lambda_weight, temper)
     loss3 = supcontrast_maskv0_01(logits_aug1, logits_aug2, targets, mask_same_instance, mask_same_instance_diff_class, lambda_weight, temper)
 
-    loss = lambda_weight * (loss1 + loss2 + loss3) / 3
+    loss = (loss1 + loss2 + loss3) / 3
 
     return loss
-
 
 
 def supconv0_01_norm(logits_clean, logits_aug1, logits_aug2, labels=None, lambda_weight=1, temper=1.0,
@@ -2792,6 +2811,181 @@ def supconv0_01_norm(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
     # loss
     loss = - (temper / base_temper) * mean_log_prob_pos
     loss = loss.view(anchor_count, batch_size).mean()
-    loss *= lambda_weight
 
     return loss
+
+def jsdv4_ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
+    '''
+    logging jsd distance by jsdv4
+    supcontrast function
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    ntxent_loss = supcontrast(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction='batchmean')
+
+    # logging
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+
+    jsd_matrix = (make_matrix(p_clean, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum') + \
+                  make_matrix(p_aug1, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum') + \
+                  make_matrix(p_aug2, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum')) / 3.
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum().detach()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum().detach()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum().detach()
+
+    loss = lambda_weight * ntxent_loss
+    triplet_loss = ntxent_loss
+
+    features = {'jsd_distance': jsd_distance.detach(),
+                'jsd_distance_diff_class': jsd_distance_diff_class.detach(),
+                'jsd_distance_same_class': jsd_distance_same_class.detach(),
+                'triplet_loss': triplet_loss,
+                }
+
+    return loss, features
+
+
+def jsdv4_ntxentv0_01(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
+    '''
+    logging jsd distance by jsdv4
+    supcontrastv0.01 function
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    ntxent_loss = supcontrastv0_01(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction='batchmean')
+
+    # logging
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+
+    jsd_matrix = (make_matrix(p_clean, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum') + \
+                  make_matrix(p_aug1, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum') + \
+                  make_matrix(p_aug2, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum')) / 3.
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum().detach()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum().detach()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum().detach()
+
+    loss = lambda_weight * ntxent_loss
+    triplet_loss = ntxent_loss
+
+    features = {'jsd_distance': jsd_distance.detach(),
+                'jsd_distance_diff_class': jsd_distance_diff_class.detach(),
+                'jsd_distance_same_class': jsd_distance_same_class.detach(),
+                'triplet_loss': triplet_loss,
+                }
+
+    return loss, features
+
+
+def jsdv4_ntxentv0_02(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, targets=None, margin=0.02):
+    '''
+    logging jsd distance by jsdv4
+    supcontrastv0.01 function
+    '''
+
+    device = logits_clean.device
+    pred_clean = logits_clean.data.max(1)[1]
+    pred_aug1 = logits_aug1.data.max(1)[1]
+    pred_aug2 = logits_aug2.data.max(1)[1]
+
+    ntxent_loss = supcontrastv0_02(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper, reduction='batchmean')
+
+    # logging
+    batch_size = logits_clean.size()[0]
+    targets = targets.contiguous().view(-1, 1)  # [B, 1]
+    temper = 1.0
+
+    mask_identical = torch.ones([batch_size, batch_size], dtype=torch.float32).to(device)
+    mask_triu = torch.triu(mask_identical.clone().detach())
+    mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
+    mask_triuu = mask_triu - mask_same_instance
+    mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
+    mask_diff_class = 1 - mask_same_class  # [B, B]
+
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1), \
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+
+    jsd_matrix = (make_matrix(p_clean, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum') + \
+                  make_matrix(p_aug1, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum') + \
+                  make_matrix(p_aug2, p_mixture, criterion=nn.KLDivLoss(reduction='none'), reduction='sum')) / 3.
+
+    jsd_matrix_same_instance = jsd_matrix * mask_same_instance
+    jsd_distance = jsd_matrix_same_instance.sum() / mask_same_instance.sum().detach()
+
+    mask_diff_triuu = mask_diff_class * mask_triuu
+    jsd_matrix_diff_class = jsd_matrix * mask_diff_triuu
+    jsd_distance_diff_class = jsd_matrix_diff_class.sum() / mask_diff_triuu.sum().detach()
+
+    mask_same_triuu = mask_same_class * mask_triuu
+    jsd_matrix_same_class = jsd_matrix * mask_same_triuu
+    jsd_distance_same_class = jsd_matrix_same_class.sum() / mask_same_triuu.sum().detach()
+
+    loss = lambda_weight * ntxent_loss
+    triplet_loss = ntxent_loss
+
+    features = {'jsd_distance': jsd_distance.detach(),
+                'jsd_distance_diff_class': jsd_distance_diff_class.detach(),
+                'jsd_distance_same_class': jsd_distance_same_class.detach(),
+                'triplet_loss': triplet_loss,
+                }
+
+    return loss, features

@@ -91,7 +91,17 @@ def get_args_from_parser():
                         help='Type of additional loss')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
     parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
+
+    parser.add_argument('--additional-loss2', '-al2',
+                        default='jsd',
+                        type=str,
+                        choices=['none', 'jsd',
+                                 'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02'
+                                 ],
+                        help='Type of additiona loss2')
+
     parser.add_argument('--lambda-weight2', '-lw2', default=12.0, type=float, help='additional loss weight2')
+    parser.add_argument('--lambda-weight3', '-lw3', default=12.0, type=float, help='additional loss weight2')
 
     parser.add_argument('--skew', default=0.8, type=float, help='skew parameter for logit')
 
@@ -219,12 +229,12 @@ def main():
     ###################
     if args.hook:
         hook = FeatureHook([
-                            "module.relu",
+                            # "module.relu",
                             "module.avgpool",
-                            "module.block1.layer.5.relu2",
-                            "module.block2.layer.5.relu2",
-                            "module.block3.layer.5.relu2",
-                            'module.block3',
+                            # "module.block1.layer.5.relu2",
+                            # "module.block2.layer.5.relu2",
+                            # "module.block3.layer.5.relu2",
+                            # 'module.block3',
                             ])
         hook.hook_multi_layer(net)
 

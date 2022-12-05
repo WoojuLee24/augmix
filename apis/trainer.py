@@ -5,7 +5,7 @@ import os
 import math
 
 from torchvision import transforms
-from losses import get_additional_loss
+from losses import get_additional_loss, get_additional_loss2
 from datasets.APR import mix_data
 
 def accuracy(output, target, topk=(1,)):
@@ -764,7 +764,8 @@ class Trainer():
     def train(self, data_loader):
         self.net.train()
         wandb_features = dict()
-        total_ce_loss, total_additional_loss = 0., 0.
+        additional_loss, hook_additional_loss = 0., 0.
+        total_ce_loss, total_additional_loss, total_hook_additional_loss = 0., 0., 0.
         total_correct, total_pred_aug_correct, total_aug_correct, total_robust = 0., 0., 0., 0.
         confusion_matrix = torch.zeros(self.classes, self.classes)
         confusion_matrix_aug1 = torch.zeros(self.classes, self.classes)
@@ -821,17 +822,30 @@ class Trainer():
                     B = images[0].size(0)
                     feature_clean, feature_aug1, feature_aug2 = torch.split(hfeature[0], images[0].size(0))
                     feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), feature_aug1.view(B, -1), feature_aug2.view(B, -1)
-                    hook_additional_loss, hook_feature = get_additional_loss(self.args,
-                                                                         feature_clean, feature_aug1, feature_aug2,
-                                                                         self.args.lambda_weight, targets, self.args.temper,
-                                                                         self.args.reduction)
+                    hook_additional_loss, hook_feature = get_additional_loss2(self.args,
+                                                                              feature_clean, feature_aug1, feature_aug2,
+                                                                              self.args.lambda_weight2, targets, self.args.temper,
+                                                                              self.args.reduction)
                     for key, value in hook_feature.items():
                         new_key = f'{hkey}_{key}'
                         feature[new_key] = value.detach()
 
-                loss = ce_loss + additional_loss
+                # for hkey, hfeature in self.net.module.hook_features.items():
+                #     B = images[0].size(0)
+                #     feature_clean, feature_aug1, feature_aug2 = torch.split(hfeature[0], images[0].size(0))
+                #     feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), feature_aug1.view(B, -1), feature_aug2.view(B, -1)
+                #     hook_additional_loss, hook_feature = get_additional_loss(self.args,
+                #                                                          feature_clean, feature_aug1, feature_aug2,
+                #                                                          self.args.lambda_weight, targets, self.args.temper,
+                #                                                          self.args.reduction)
+                #     for key, value in hook_feature.items():
+                #         new_key = f'{hkey}_{key}'
+                #         feature[new_key] = value.detach()
+
+                loss = ce_loss + additional_loss + hook_additional_loss
                 total_ce_loss += float(ce_loss.data)
                 total_additional_loss += float(additional_loss.data)
+                total_hook_additional_loss += float(hook_additional_loss.data)
 
                 if i == 0:
                     for key, value in feature.items():
@@ -898,6 +912,7 @@ class Trainer():
         # loss
         wandb_features['train/ce_loss'] = total_ce_loss / denom
         wandb_features['train/additional_loss'] = total_additional_loss / denom
+        wandb_features['train/hook_additional_loss'] = total_hook_additional_loss / denom
         wandb_features['train/loss'] = (total_ce_loss + total_additional_loss) / denom
 
         # error
