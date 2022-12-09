@@ -764,7 +764,7 @@ class Trainer():
     def train(self, data_loader):
         self.net.train()
         wandb_features = dict()
-        additional_loss, hook_additional_loss = 0., 0.
+        additional_loss, hook_additional_loss = 0., torch.tensor(0.)
         total_ce_loss, total_additional_loss, total_hook_additional_loss = 0., 0., 0.
         total_correct, total_pred_aug_correct, total_aug_correct, total_robust = 0., 0., 0., 0.
         confusion_matrix = torch.zeros(self.classes, self.classes)

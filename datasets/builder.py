@@ -8,6 +8,7 @@ from .mixdataset import BaseDataset, AugMixDataset
 from .mixdataset_v2 import AugMixDataset_v2_0
 from .pixmix import RandomImages300K, PixMixDataset
 from .APR import AprS
+import utils
 
 def build_dataset(args, corrupted=False):
     dataset = args.dataset
@@ -23,12 +24,19 @@ def build_dataset(args, corrupted=False):
                                               transforms.RandomCrop(32, padding=4)])
         test_transform = preprocess
 
+        mixing_set_transform = transforms.Compose([transforms.Resize(36),
+                                                   transforms.RandomCrop(32)])
+
     else: #imagenet
         train_transform = transforms.Compose([transforms.RandomResizedCrop(224),
                                               transforms.RandomHorizontalFlip()])
         test_transform = transforms.Compose([transforms.Resize(256),
                                              transforms.CenterCrop(224),
                                              preprocess])
+
+        mixing_set_transform = transforms.Compose([transforms.Resize(256),
+                                                   transforms.RandomCrop(224)])
+        utils.IMAGE_SIZE = 224
 
     parent_dir = '/ws/data'
     dir_name = 'cifar' if (dataset == 'cifar10' or dataset == 'cifar100') else dataset
@@ -84,11 +92,12 @@ def build_dataset(args, corrupted=False):
                     [transforms.ToTensor(), transforms.ToPILImage(), transforms.RandomCrop(32, padding=4),
                      transforms.RandomHorizontalFlip()]))
             else:
-                mixing_set_transform = transforms.Compose([transforms.Resize(36),
-                                                           transforms.RandomCrop(32)])
+                # mixing_set_transform = transforms.Compose([transforms.Resize(36),
+                #                                            transforms.RandomCrop(32)])
                 mixing_set = datasets.ImageFolder(args.mixing_set, transform=mixing_set_transform)
             to_tensor = transforms.ToTensor()
-            normalize = transforms.Normalize([0.5] * 3, [0.5] * 3)
+            # normalize = transforms.Normalize([0.5] * 3, [0.5] * 3)
+            normalize = transforms.Normalize(mean, std)
             train_dataset = PixMixDataset(train_dataset, mixing_set, {'normalize': normalize, 'tensorize': to_tensor},
                                           no_jsd=no_jsd, k=args.k, beta=args.beta, all_ops=args.all_ops, aug_severity=args.aug_severity)
         elif aug == 'apr_s':
