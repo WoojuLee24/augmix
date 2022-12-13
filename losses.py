@@ -197,6 +197,9 @@ def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
     elif name == 'jsdv4.ntxent.detach':
         margin = args.margin
         loss, features = jsdv4_ntxent_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
+    elif name == 'opl':
+        loss, features = opl(logits_clean, logits_aug1, logits_aug2, args, lambda_weight, temper, labels=targets)
+
     return loss, features
 
 
@@ -3051,3 +3054,49 @@ def jsdv4_ntxent_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight=12
                 }
 
     return loss, features
+
+
+def opl(features_clean, features_aug1, features_aug2, args, lambda_weight=12, temper=1.0, labels=None):
+    """
+    norm true
+    use only features_clean
+    w/o attention
+    """
+    norm = args.opl_norm
+    attention = args.opl_attention
+    gamma = args.opl_gamma
+
+    features = features_clean
+    device = features_clean.device
+
+    if attention:
+        features_weights = torch.matmul(features, features.T)
+        features_weights = F.softmax(features_weights, dim=1)
+        features = torch.matmul(features_weights, features)
+
+        #  features are normalized
+    if norm:
+        features = F.normalize(features, p=2, dim=1)
+
+    labels = labels[:, None]  # extend dim
+    mask = torch.eq(labels, labels.t()).bool().to(device)
+    eye = torch.eye(mask.shape[0], mask.shape[1]).bool().to(device)
+
+    mask_pos = mask.masked_fill(eye, 0).float()
+    mask_neg = (~mask).float()
+    dot_prod = torch.matmul(features, features.t())
+
+    pos_pairs_mean = (mask_pos * dot_prod).sum() / (mask_pos.sum() + 1e-6)
+    neg_pairs_mean = torch.abs(mask_neg * dot_prod).sum() / (mask_neg.sum() + 1e-6)
+
+    opl_loss = (1.0 - pos_pairs_mean) + (gamma * neg_pairs_mean)
+    loss = lambda_weight * opl_loss
+    # loss = neg_pairs_mean
+
+    features = {'opl_loss': opl_loss.detach(),
+                'pos_pairs_mean': pos_pairs_mean.detach(),
+                'neg_pairs_mean': neg_pairs_mean.detach(),
+    }
+
+    return loss, features
+

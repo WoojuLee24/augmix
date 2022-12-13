@@ -96,7 +96,8 @@ def get_args_from_parser():
                         default='jsd',
                         type=str,
                         choices=['none', 'jsd',
-                                 'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02', 'jsdv4.ntxent.detach'
+                                 'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02', 'jsdv4.ntxent.detach',
+                                 'opl',
                                  ],
                         help='Type of additiona loss2')
 
@@ -104,6 +105,11 @@ def get_args_from_parser():
     parser.add_argument('--lambda-weight3', '-lw3', default=12.0, type=float, help='additional loss weight2')
 
     parser.add_argument('--skew', default=0.8, type=float, help='skew parameter for logit')
+
+    ## opl option ##
+    parser.add_argument('--opl-norm', action='store_true', help='opl feature normalization')
+    parser.add_argument('--opl-attention', action='store_true', help='opl feature attention')
+    parser.add_argument('--opl-gamma', default=2, type=float, help='opl gamma parameter')
 
     parser.add_argument('--reduction', default='batchmean', type=str, choices=['batchmean', 'mean'],
                         help='temperature scaling')
