@@ -36,7 +36,7 @@ def build_net(args, num_classes):
         elif args.model == 'wrn_encoder':
             net = WideResNetEncoder(args.layers, num_classes, args.widen_factor, args.droprate)
         elif args.model == 'wrnproj':
-            net = WideResNetProj(args.layers, num_classes, args.widen_factor, args.droprate, args.jsd_layer)
+            net = WideResNetProj(args.layers, num_classes, args.widen_factor, args.droprate, args.num_proj, args.proj_channels, args.proj_from)
         elif args.model == 'allconv':
             net = AllConvNet(num_classes)
         elif args.model == 'resnext':

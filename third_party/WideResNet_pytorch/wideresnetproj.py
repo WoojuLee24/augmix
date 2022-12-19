@@ -81,7 +81,7 @@ class NetworkBlock(nn.Module):
 class WideResNetProj(nn.Module):
     """WideResNet class."""
 
-    def __init__(self, depth, num_classes, widen_factor=1, drop_rate=0.0, mode='features'):
+    def __init__(self, depth, num_classes, widen_factor=1, drop_rate=0.0, num_proj=2, proj_out_channel=128, proj_from='features'):
         super(WideResNetProj, self).__init__()
         self.hook_features = dict()
         n_channels = [16, 16 * widen_factor, 32 * widen_factor, 64 * widen_factor]
@@ -103,21 +103,31 @@ class WideResNetProj(nn.Module):
         # global average pooling and classifier
         self.bn1 = nn.BatchNorm2d(n_channels[3])
         self.relu = nn.ReLU(inplace=True)
+        self.avgpool = nn.AvgPool2d(8)
         self.fc = nn.Linear(n_channels[3], num_classes)
-        if mode == 'features':
-            proj_channel = n_channels[3]
-        elif mode == 'logits':
-            proj_channel = num_classes
-        self.proj = nn.Sequential(nn.Linear(proj_channel, n_channels[3]),
-                                  nn.BatchNorm1d(n_channels[3]),
-                                  nn.ReLU(),
-                                  nn.Linear(n_channels[3], n_channels[3]),
-                                  nn.BatchNorm1d(n_channels[3]),
-                                  nn.ReLU(),
-                                  nn.Linear(n_channels[3], proj_channel))
-        self.proj_bn = nn.BatchNorm1d(proj_channel)
-        self.mode = mode
         self.n_channels = n_channels[3]
+
+        # proj layers
+        self.proj_from = proj_from
+        if proj_from == 'feature':
+            proj_in_channel = n_channels[3]
+        elif proj_from == 'logit':
+            proj_in_channel = num_classes
+
+        if num_proj == 3:
+            self.proj = nn.Sequential(nn.Linear(proj_in_channel, n_channels[3]),
+                                      nn.BatchNorm1d(n_channels[3]),
+                                      nn.ReLU(),
+                                      nn.Linear(n_channels[3], n_channels[3]),
+                                      nn.BatchNorm1d(n_channels[3]),
+                                      nn.ReLU(),
+                                      nn.Linear(n_channels[3], proj_out_channel))
+        elif num_proj == 2:
+            self.proj = nn.Sequential(nn.Linear(proj_in_channel, n_channels[3]),
+                                      nn.BatchNorm1d(n_channels[3]),
+                                      nn.ReLU(),
+                                      nn.Linear(n_channels[3], proj_out_channel))
+
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -139,7 +149,7 @@ class WideResNetProj(nn.Module):
         out = self.block2(out)
         out = self.block3(out)
         out = self.relu(self.bn1(out))
-        out = F.avg_pool2d(out, 8)
+        out = self.avgpool(out)
         out = out.view(-1, self.n_channels)
 
         return out
@@ -147,10 +157,10 @@ class WideResNetProj(nn.Module):
     def forward(self, x, targets=None):
         self.features = self.extract_features(x)
         logits = self.fc(self.features)
-        if self.mode == 'features':
-            self.feature_projected = self.proj_bn(self.proj(self.features) + self.features)
-        elif self.mode == 'logits':
-            self.feature_projected = self.proj_bn(self.proj(logits) + logits)
+        if self.proj_from == 'feature':
+            self.feature_projected = self.proj(self.features)
+        elif self.proj_from == 'logit':
+            self.feature_projected = self.proj(logits)
 
         if targets is not None:
             from utils.visualize import plot_tsne, multi_plot_tsne

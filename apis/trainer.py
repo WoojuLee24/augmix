@@ -826,6 +826,10 @@ class Trainer():
                                                                               feature_clean, feature_aug1, feature_aug2,
                                                                               self.args.lambda_weight2, targets, self.args.temper,
                                                                               self.args.reduction)
+                    if (self.args.model == 'wrnproj') and ('module.avgpool' in hkey):
+                        hook_additional_loss = hook_additional_loss.detach()
+                        hook_additional_loss = torch.tensor(0.).cuda()
+
                     for key, value in hook_feature.items():
                         new_key = f'{hkey}_{key}'
                         feature[new_key] = value.detach()

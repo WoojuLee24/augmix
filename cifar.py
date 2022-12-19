@@ -149,6 +149,11 @@ def get_args_from_parser():
     ## WRNAuxBN Architecture options
     parser.add_argument('--aux', default=3, type=str, help='AuxBN factor')
 
+    ## WRNProj Architecture options
+    parser.add_argument('--proj-from', default='feature',  choices=['feature', 'logit'], type=str, help='proj from which layer')
+    parser.add_argument('--num-proj', default=2, type=int, help='number of proj fc layers')
+    parser.add_argument('--proj-channels', default=128, type=int, help='channels of proj fc layers')
+
     ## WRNFc Architecture options
     parser.add_argument('--fcnoise', default='none', type=str, help='fc noise type: none, unoise, gnoise,..')
     parser.add_argument('--fcnoise-s', default=0.1, type=float, help='fc nosise severity')
@@ -237,6 +242,7 @@ def main():
         hook = FeatureHook([
                             # "module.relu",
                             "module.avgpool",
+                            "module.proj.3"
                             # "module.block1.layer.5.relu2",
                             # "module.block2.layer.5.relu2",
                             # "module.block3.layer.5.relu2",
