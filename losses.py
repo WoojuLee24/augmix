@@ -16,6 +16,11 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     elif name == 'jsdvl_v0.1':
         loss, features = jsdvl_v0_1(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper)
         return loss, features
+    elif name == 'jsdvl_v0.1.1':
+        alpha = args.lambda_alpha
+        beta = args.lambda_beta
+        loss, features = jsdvl_v0_1_1(logits_clean, logits_aug1, logits_aug2, targets, alpha, beta, lambda_weight, temper)
+        return loss, features
     elif name == 'jsd.skew':
         loss, features = jsd_skew(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, args.skew)
         return loss, features
@@ -271,6 +276,45 @@ def jsdvl_v0_1(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight=12
                               F.softmax(logits_aug2 / temper, dim=1)
 
     vl = p_clean[torch.arange(p_clean.size(0)), targets]
+    vl = vl.detach()
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+
+    batch_size = p_clean.size(0)
+    jsd_distance_ = (F.kl_div(p_mixture, p_clean, reduction='none').sum(1) * vl +
+                    F.kl_div(p_mixture, p_aug1, reduction='none').sum(1) * vl +
+                    F.kl_div(p_mixture, p_aug2, reduction='none').sum(1) * vl)
+    jsd_distance = jsd_distance_.sum(0) / 3. / batch_size
+
+    # jsd_distance2_ = (F.kl_div(p_mixture, p_clean, reduction='none').sum(1) +
+    #                  F.kl_div(p_mixture, p_aug1, reduction='none').sum(1) +
+    #                  F.kl_div(p_mixture, p_aug2, reduction='none').sum(1))
+    # jsd_distance2 = jsd_distance2_.sum(0) / 3. / batch_size
+    #
+    # jsd_distance3 = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+    #                  F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+    #                  F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+    loss = lambda_weight * jsd_distance
+
+    features = {'jsd_distance': jsd_distance,
+                }
+
+    return loss, features
+
+def jsdvl_v0_1_1(logits_clean, logits_aug1, logits_aug2, targets, alpha=0.5, beta=1, lambda_weight=12, temper=1.0):
+    """
+    variational weight w.r.t correct class probability
+    correct class prob are shifted by alpha. m <= p <= 1 + m, and length is controlled by beta
+    """
+
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1),\
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
+
+    vl = p_clean[torch.arange(p_clean.size(0)), targets]
+    vl = vl * (beta - alpha) + alpha
     vl = vl.detach()
 
     # Clamp mixture distribution to avoid exploding KL divergence
