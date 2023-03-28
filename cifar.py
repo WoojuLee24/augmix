@@ -27,6 +27,8 @@ import os
 import shutil
 import time
 import torch
+import random
+import torch.backends.cudnn as cudnn
 
 import numpy as np
 
@@ -41,6 +43,12 @@ from feature_hook import FeatureHook
 def get_args_from_parser():
     parser = argparse.ArgumentParser(description='Trains a CIFAR Classifier',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # Seed
+    parser.add_argument('--seed',
+                        type=int,
+                        default=-1,
+                        help='Set value to fix the seed'
+                        )
     # Dataset
     parser.add_argument('--dataset',
                         type=str,
@@ -142,6 +150,8 @@ def get_args_from_parser():
                                  ### imagenet ###
                                  'resnet50'],
                         help='Choose architecture.')
+    ### Siamese Architecture options
+    parser.add_argument('--siamese', '-siam', action='store_true', help='basic siamese network architecture')
     ## WRN Architecture options
     parser.add_argument('--layers', default=40, type=int, help='total number of layers')
     parser.add_argument('--widen-factor', default=2, type=int, help='Widen factor')
@@ -194,8 +204,18 @@ def get_args_from_parser():
 
 def main():
     args = get_args_from_parser()
-    torch.manual_seed(1)
-    np.random.seed(1)
+    if args.seed == -1:
+        torch.manual_seed(1)
+        np.random.seed(1)
+    else:
+        seed = args.seed
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+        cudnn.benchmark = False
+        cudnn.deterministic = True
+        random.seed(seed)
 
     ########################
     ### Initialize wandb ###

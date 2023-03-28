@@ -801,13 +801,19 @@ class Trainer():
                 acc1, acc5 = accuracy(logits, targets, topk=(1, 5))
 
             else:
-                images_all = torch.cat(images, 0).to(self.device)
-                targets = targets.to(self.device)
+                if self.args.siamese == True:
+                    images_clean = images[0].to(self.device)
+                    images_aug = torch.cat(images[1:], 0).to(self.device)
+                    targets = targets.to(self.device)
+                    logits_clean = self.net(images_clean)
+                    logits_aug = self.net(images_aug)
+                    logits_aug1, logits_aug2 = torch.split(logits_aug, images[0].size(0))
+                else:
+                    images_all = torch.cat(images, 0).to(self.device)
+                    targets = targets.to(self.device)
+                    logits_all = self.net(images_all) #, targets)
+                    logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
 
-                logits_all = self.net(images_all) #, targets)
-                self.wandb_input = self.net.get_wandb_input()
-
-                logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
                 pred = logits_clean.data.max(1)[1]
                 pred_aug1 = logits_aug1.data.max(1)[1]
                 pred_aug2 = logits_aug2.data.max(1)[1]
@@ -817,6 +823,8 @@ class Trainer():
                                                                logits_clean, logits_aug1, logits_aug2,
                                                                self.args.lambda_weight, targets, self.args.temper,
                                                                self.args.reduction)
+
+                self.wandb_input = self.net.get_wandb_input()
 
                 for hkey, hfeature in self.net.module.hook_features.items():
                     B = images[0].size(0)
