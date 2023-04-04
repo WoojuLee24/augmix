@@ -6,6 +6,10 @@ from torchvision import datasets
 import augmentations
 from .mixdataset import BaseDataset, AugMixDataset
 from .mixdataset_v2 import AugMixDataset_v2_0
+from .prime.prime import GeneralizedPRIMEModule, PRIMEAugModule, TransformLayer
+from .prime.diffeomorphism import Diffeo
+from .prime.rand_filter import RandomFilter
+from. prime.color_jitter import RandomSmoothColor
 from .pixmix import RandomImages300K, PixMixDataset
 from .APR import AprS
 import utils
@@ -77,6 +81,7 @@ def build_dataset(args, corrupted=False):
 
         aug = args.aug
         no_jsd = args.no_jsd
+        prime_module = None
         if aug == 'none':
             train_dataset = BaseDataset(train_dataset, preprocess, no_jsd)
         elif aug == 'augmix':
@@ -86,6 +91,45 @@ def build_dataset(args, corrupted=False):
             train_dataset = AugMixDataset_v2_0(train_dataset, preprocess, no_jsd,
                                           args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
                                           args.mixture_alpha, args.mixture_beta, args.mixture_fix)
+        elif aug == 'prime':
+            preprocess = transforms.Compose([transforms.ToTensor()])
+            train_dataset = BaseDataset(train_dataset, preprocess)
+
+            # prime aug init
+            augmentations = []
+
+            if args.prime.enable_aug.diffeo:
+                diffeo = Diffeo(
+                    sT=args.prime.diffeo.sT, rT=args.prime.diffeo.rT,
+                    scut=args.prime.diffeo.scut, rcut=args.prime.diffeo.rcut,
+                    cutmin=args.prime.diffeo.cutmin, cutmax=args.prime.diffeo.cutmax,
+                    alpha=args.prime.diffeo.alpha, stochastic=True
+                )
+                augmentations.append(diffeo)
+
+            if args.prime.enable_aug.color_jit:
+                color = RandomSmoothColor(
+                    cut=args.prime.color_jit.cut, T=args.prime.color_jit.T,
+                    freq_bandwidth=args.prime.color_jit.max_freqs, stochastic=True
+                )
+                augmentations.append(color)
+
+            if args.prime.enable_aug.rand_filter:
+                filt = RandomFilter(
+                    kernel_size=args.prime.rand_filter.kernel_size,
+                    sigma=args.prime.rand_filter.sigma, stochastic=True
+                )
+                augmentations.append(filt)
+
+            prime_module = GeneralizedPRIMEModule(
+                preprocess=TransformLayer(mean, std),
+                mixture_width=args.prime.augmix.mixture_width,
+                mixture_depth=args.prime.augmix.mixture_depth,
+                no_jsd=args.prime.augmix.no_jsd, max_depth=3,
+                aug_module=PRIMEAugModule(augmentations),
+            )
+
+
         elif aug == 'pixmix':
             if args.use_300k:
                 mixing_set = RandomImages300K(file='300K_random_images.npy', transform=transforms.Compose(
@@ -103,7 +147,7 @@ def build_dataset(args, corrupted=False):
         elif aug == 'apr_s':
             train_dataset = AprS(train_dataset_apr, args, no_jsd)
 
-        return train_dataset, test_dataset, num_classes, base_c_path
+        return train_dataset, test_dataset, num_classes, base_c_path, prime_module
 
 
 def build_dataloader(train_dataset, test_dataset, args):

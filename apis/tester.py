@@ -470,8 +470,10 @@ class Tester():
                     c, test_loss, 100 - 100. * test_acc))
 
             test_c_acc = np.mean(corruption_accs)
-            test_c_cm = np.mean(confusion_matrices, axis=0)
-            return test_c_acc, wandb_table, test_c_cm
+            test_c_cms = np.asarray(confusion_matrices)
+            test_c_cm_mean = np.mean(confusion_matrices, axis=0)
+            # return test_c_acc, wandb_table, test_c_cms, test_c_cm_mean
+            return test_c_acc, wandb_table, test_c_cm_mean
 
 
     def test_save(self, data_loader, data_type='clean'):
@@ -492,26 +494,27 @@ class Tester():
                 total_loss += float(loss.data)
                 total_correct += pred.eq(targets.data).sum().item()
 
-                # save false examples
-                inds = (pred != targets).nonzero(as_tuple=True)[0]
-                inds = inds.detach().cpu().numpy()
-                images = images * 0.5 + 0.5
 
-                for ind in inds:
-                    folderpath = os.path.join(self.args.save, 'false_images')
-                    if not os.path.exists(folderpath):
-                        os.mkdir(folderpath)
-                    f = (i * B + ind) % 10000
-                    s = (i * B + ind) // 10000 + 1
-                    t = targets[ind]
-                    p = pred[ind]
-                    filename = f"f{f}_{data_type}_s{s}_t{t}_p{p}.png"
-                    filepath = os.path.join(folderpath, filename)
+                if self.args.save != '':
+                    # save false examples
+                    inds = (pred != targets).nonzero(as_tuple=True)[0]
+                    inds = inds.detach().cpu().numpy()
+                    images = images * 0.5 + 0.5
+                    for ind in inds:
+                        folderpath = os.path.join(self.args.save, 'false_images')
+                        if not os.path.exists(folderpath):
+                            os.mkdir(folderpath)
+                        f = (i * B + ind) % 10000
+                        s = (i * B + ind) // 10000 + 1
+                        t = targets[ind]
+                        p = pred[ind]
+                        filename = f"f{f}_{data_type}_s{s}_t{t}_p{p}.png"
+                        filepath = os.path.join(folderpath, filename)
 
-                    image = images[ind].detach().cpu().numpy()
-                    image = np.transpose(image, axes=[1, 2, 0])
+                        image = images[ind].detach().cpu().numpy()
+                        image = np.transpose(image, axes=[1, 2, 0])
 
-                    plt.imsave(filepath, image)
+                        plt.imsave(filepath, image)
 
 
                 for t, p in zip(targets.view(-1), pred.view(-1)):
@@ -526,4 +529,5 @@ class Tester():
         wandb_features['test/error'] = 100 - 100. * total_correct / datasize
         test_loss = total_loss / datasize
         test_acc = total_correct / datasize
+        confusion_matrix = confusion_matrix.cpu().detach().numpy()
         return test_loss, test_acc, wandb_features, confusion_matrix

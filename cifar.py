@@ -38,6 +38,7 @@ from datasets import *
 from utils import WandbLogger
 
 from feature_hook import FeatureHook
+from config import cifar10_cfg
 
 
 def get_args_from_parser():
@@ -58,7 +59,7 @@ def get_args_from_parser():
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',
-                        choices=['none', 'augmix', 'pixmix', 'augmix_v2.0', 'apr_s'],
+                        choices=['none', 'augmix', 'pixmix', 'augmix_v2.0', 'apr_s', 'prime'],
                         help='Choose domain generalization augmentation methods')
     ## AugMix options
     parser.add_argument('--mixture-width', default=3, type=int,
@@ -76,7 +77,7 @@ def get_args_from_parser():
                         default='jsd',
                         type=str,
                         choices=['none', 'jsd', 'jsd.manual', 'jsd.manual.ce','jsd_temper',
-                                 'jsdvl_v0.1', 'jsdvl_v0.1.1',
+                                 'jsdvl_v0.1', 'jsdvl_v0.1.1', 'jsdvl_v0.1.2',
                                  'jsd.skew',
                                  'analysisv1.0',
                                  'jsdv1',
@@ -181,7 +182,7 @@ def get_args_from_parser():
     parser.add_argument('--decay', '-wd', type=float, default=0.0005, help='Weight decay (L2 penalty).')
 
     # Checkpointing options
-    parser.add_argument('--save', '-s', type=str, default='/ws/data/log', help='Folder to save checkpoints.')
+    parser.add_argument('--save', '-s', type=str, default='', help='Folder to save checkpoints.')
     parser.add_argument('--save-every', '-se', type=bool, default=False, help='save checkpoints every time.')
     parser.add_argument('--resume', '-r', type=str, default='', help='Checkpoint path for resume / test.')
     parser.add_argument('--print-freq', type=int, default=50, help='Training loss print frequency (batches).')
@@ -215,6 +216,8 @@ def main():
         np.random.seed(seed)
         cudnn.benchmark = False
         cudnn.deterministic = True
+        # torch.use_deterministic_algorithms(True)
+        # args.num_workers = 0
         random.seed(seed)
 
     ########################
@@ -244,9 +247,18 @@ def main():
     wandb_logger.before_run()
 
     #####################
+    ####### prime ######
+    #####################
+
+    if args.aug == 'prime':
+        if args.dataset == 'cifar10':
+            args.prime = cifar10_cfg.get_config()
+
+
+    #####################
     ### Load datasets ###
     #####################
-    train_dataset, test_dataset, num_classes, base_c_path = build_dataset(args)
+    train_dataset, test_dataset, num_classes, base_c_path, prime_module = build_dataset(args)
     train_loader, test_loader = build_dataloader(train_dataset, test_dataset, args)
 
     ####################
@@ -303,7 +315,7 @@ def main():
     ### Scheduler ###
     #################
 
-    if args.resume:
+    if args.resume and not args.evaluate and not args.analysis:
         scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer,
             lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
@@ -345,28 +357,30 @@ def main():
     ###########################
     elif args.analysis:
 
+        # test_c_acc, test_c_table, test_c_cms = tester.test_c_save(test_dataset, base_c_path)
+
         # save false examples of corrupted data
-        test_c_acc, test_c_table, test_c_cms = tester.test_c_save(test_dataset, base_c_path)
+        # test_c_acc, test_c_table, test_c_cms, test_c_cm_mean = tester.test_c_save(test_dataset, base_c_path)
 
         # train_loss, train_acc, train_features, train_cms = tester.test_v2_trainer(train_loader)
         # wandb_logger.log_evaluate(dict(train_cms=train_cms))
         # #
         # test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
         # test_c_acc, test_c_table, test_c_cms, test_c_features = tester.test_c_v2(test_dataset, base_c_path) # analyzie jsd distance of corrupted data
-        # # test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)    # plot t-sne features
-        # print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+        test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)    # plot t-sne features
+        print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 
-        # from utils.visualize import plot_confusion_matrix
-        # import matplotlib.pyplot as plt
-        # for key, value in test_c_cms.items():
-        #     test_c_plt = plot_confusion_matrix(value)
-        #     test_c_plt.savefig(f'/ws/data/log/cifar10/debug/{key}.png')
+        from utils.visualize import plot_confusion_matrix
+        import matplotlib.pyplot as plt
+        for key, value in test_c_cms.items():
+            test_c_plt = plot_confusion_matrix(value)
+            test_c_plt.savefig(f'/ws/data/log/cifar10/debug/{key}.png')
 
         wandb_logger.log_evaluate(dict(test_cm=test_cm,
                                        test_c_table=test_c_table,
                                        test_c_acc=test_c_acc,
                                        test_c_cms=test_c_cms,
-                                       test_c_features=test_c_features
+                                       # test_c_features=test_c_features
                                        ))
         return
     ########################
@@ -413,6 +427,8 @@ def main():
             #     train_loss_ema, train_features = trainer.train_auxbn(train_loader)
             elif args.fcnoise != 'none':
                 train_loss_ema, train_features, train_cms = trainer.train_fcnoise(train_loader)
+            elif args.aug == "prime":
+                train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
             else:
                 train_loss_ema, train_features, train_cms = trainer.train(train_loader)
 
@@ -478,4 +494,5 @@ def main():
 
 
 if __name__ == '__main__':
+    # config_flags.DEFINE_config_file('config') # prime
     main()
