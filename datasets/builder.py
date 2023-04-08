@@ -5,6 +5,7 @@ from torchvision import datasets
 
 import augmentations
 from .mixdataset import BaseDataset, AugMixDataset
+from .ctrl_mixdataset import CtrlAugMixDataset
 from .mixdataset_v2 import AugMixDataset_v2_0
 from .prime.prime import GeneralizedPRIMEModule, PRIMEAugModule, TransformLayer
 from .prime.diffeomorphism import Diffeo
@@ -87,6 +88,10 @@ def build_dataset(args, corrupted=False):
         elif aug == 'augmix':
             train_dataset = AugMixDataset(train_dataset, preprocess, no_jsd,
                                           args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity, args.mixture_coefficient)
+        elif aug == 'ctrlaugmix':
+            train_dataset = CtrlAugMixDataset(train_dataset, preprocess, no_jsd,
+                                              args.set_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+                                              args.mixture_coefficient)
         elif aug == 'augmix_v2.0':
             train_dataset = AugMixDataset_v2_0(train_dataset, preprocess, no_jsd,
                                           args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
@@ -153,7 +158,7 @@ def build_dataset(args, corrupted=False):
 def build_dataloader(train_dataset, test_dataset, args):
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                batch_size=args.batch_size,
-                                               shuffle=True,
+                                               shuffle=args.shuffle,
                                                num_workers=args.num_workers,
                                                pin_memory=True)
     test_loader = torch.utils.data.DataLoader(test_dataset,

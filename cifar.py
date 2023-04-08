@@ -59,8 +59,11 @@ def get_args_from_parser():
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',
-                        choices=['none', 'augmix', 'pixmix', 'augmix_v2.0', 'apr_s', 'prime'],
+                        choices=['none', 'augmix', 'pixmix', 'augmix_v2.0', 'apr_s', 'prime', 'ctrlaugmix'],
                         help='Choose domain generalization augmentation methods')
+
+    parser.add_argument('--shuffle', type=bool, default=True, help='shuffle or not')
+
     ## AugMix options
     parser.add_argument('--mixture-width', default=3, type=int,
                         help='Number of augmentation chains to mix per augmented example')
@@ -118,6 +121,23 @@ def get_args_from_parser():
     parser.add_argument('--lambda-weight3', '-lw3', default=12.0, type=float, help='additional loss weight2')
 
     parser.add_argument('--skew', default=0.8, type=float, help='skew parameter for logit')
+
+
+    ## uniform-label ##
+    parser.add_argument('--uniform-label', '-ul',
+                        type=str,
+                        default='none',
+                        choices=['none', 'v0.1', 'v0.2', 'v0.3'],
+                        help='Choose domain generalization augmentation methods')
+    parser.add_argument('--aux-num', '-auxn',
+                        type=int,
+                        default=1,
+                        help='number of images with uniform labels')
+    parser.add_argument('--aux-type', '-auxt',
+                        type=str,
+                        default='unoise',
+                        choices=['unoise', 'gnoise', 'mix'],
+                        help='number of images with uniform labels')
 
     ## opl option ##
     parser.add_argument('--opl-norm', action='store_true', help='opl feature normalization')
@@ -190,6 +210,13 @@ def get_args_from_parser():
     # Acceleration
     parser.add_argument('--num-workers', type=int, default=4, help='Number of pre-fetching threads.')
 
+    # save grad analysis options
+    parser.add_argument('--save-grad', '-sg', action='store_true', help='save gradient ')
+    parser.add_argument('--set-ops', '-sop', type=int, default=-1, help='select which operation to use')
+
+    # cls dg training
+    parser.add_argument('--cls-dg', '-cd', type=int, default=-1, help='which cls dg')
+
     # Log
     parser.add_argument('--evaluate', action='store_true', help='Eval only.')
     parser.add_argument('--analysis', action='store_true', help='Analysis only. ')
@@ -234,6 +261,15 @@ def main():
         save_path = os.path.join(args.save, "analysis")
         if not os.path.exists(save_path):
             os.mkdir(save_path)
+    elif args.save_grad:
+        args.shuffle = False
+        if not args.resume=='':
+            resume_path = (args.resume).split('/')
+            resume_model = resume_path[-2]
+            name = resume_model + '_sg'
+            save_path = os.path.join(args.save, "sg")
+            if not os.path.exists(save_path):
+                os.mkdir(save_path)
     else:
         # name = f"{args.aug}_{args.additional_loss}_b{args.batch_size}"
         save_path = args.save
@@ -253,7 +289,6 @@ def main():
     if args.aug == 'prime':
         if args.dataset == 'cifar10':
             args.prime = cifar10_cfg.get_config()
-
 
     #####################
     ### Load datasets ###
@@ -357,6 +392,19 @@ def main():
     ###########################
     elif args.analysis:
 
+        ############################
+        ##### class-wise acc #######
+        ############################
+        test_c_acc, test_c_table, test_c_cm, test_c_features = tester.test_c_cls(test_dataset, base_c_path)  # plot t-sne features
+        print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+
+        wandb_logger.log_evaluate(dict(test_c_cm=test_c_cm,
+                                       test_c_table=test_c_table,
+                                       test_c_acc=test_c_acc,
+                                       test_c_features=test_c_features
+                                       ))
+
+        ##########################
         # test_c_acc, test_c_table, test_c_cms = tester.test_c_save(test_dataset, base_c_path)
 
         # save false examples of corrupted data
@@ -367,22 +415,23 @@ def main():
         # #
         # test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
         # test_c_acc, test_c_table, test_c_cms, test_c_features = tester.test_c_v2(test_dataset, base_c_path) # analyzie jsd distance of corrupted data
-        test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)    # plot t-sne features
-        print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+        # test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)    # plot t-sne features
+        # print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+        #
+        # from utils.visualize import plot_confusion_matrix
+        # import matplotlib.pyplot as plt
+        # for key, value in test_c_cms.items():
+        #     test_c_plt = plot_confusion_matrix(value)
+        #     test_c_plt.savefig(f'/ws/data/log/cifar10/debug/{key}.png')
 
-        from utils.visualize import plot_confusion_matrix
-        import matplotlib.pyplot as plt
-        for key, value in test_c_cms.items():
-            test_c_plt = plot_confusion_matrix(value)
-            test_c_plt.savefig(f'/ws/data/log/cifar10/debug/{key}.png')
-
-        wandb_logger.log_evaluate(dict(test_cm=test_cm,
-                                       test_c_table=test_c_table,
-                                       test_c_acc=test_c_acc,
-                                       test_c_cms=test_c_cms,
-                                       # test_c_features=test_c_features
-                                       ))
+        # wandb_logger.log_evaluate(dict(test_cm=test_cm,
+        #                                test_c_table=test_c_table,
+        #                                test_c_acc=test_c_acc,
+        #                                test_c_cms=test_c_cms,
+        #                                # test_c_features=test_c_features
+        #                                ))
         return
+
     ########################
     ### ELSE: Train mode ###
     ########################
@@ -425,10 +474,14 @@ def main():
                 train_loss_ema, train_features = trainer.train_expand(train_loader)
             # elif args.model == 'wrnauxbn':
             #     train_loss_ema, train_features = trainer.train_auxbn(train_loader)
-            elif args.fcnoise != 'none':
-                train_loss_ema, train_features, train_cms = trainer.train_fcnoise(train_loader)
+            elif args.save_grad:
+                train_loss_ema, train_features, train_cms = trainer.train_save_grad(train_loader)
             elif args.aug == "prime":
                 train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
+            elif args.uniform_label in ['v0.1', 'v0.2', 'v0.3']:
+                train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
+            elif args.cls_dg != -1:
+                train_loss_ema, train_features, train_cms = trainer.train_cls(train_loader)
             else:
                 train_loss_ema, train_features, train_cms = trainer.train(train_loader)
 
@@ -479,12 +532,26 @@ def main():
                 .format((epoch + 1), int(time.time() - begin_time), train_loss_ema,
                         test_loss, 100 - 100. * test_acc))
 
-        test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
-        # tsne
-        # test_tsne = tester.test_c(test_dataset, base_c_path)
-        wandb_logger.after_run(dict(test_c_table=test_c_table,  # wandb here
-                                    test_c_acc=test_c_acc,
-                                    test_c_cm=test_c_cm))
+
+        if args.cls_dg != -1:
+            test_c_acc, test_c_table, test_c_cm, test_c_features = tester.test_c_cls(test_dataset,
+                                                                                     base_c_path)  # plot t-sne features
+
+            print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+
+            wandb_logger.log_evaluate(dict(test_c_cm=test_c_cm,
+                                           test_c_table=test_c_table,
+                                           test_c_acc=test_c_acc,
+                                           test_c_features=test_c_features
+                                           ))
+        else:
+
+            test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
+            # tsne
+            # test_tsne = tester.test_c(test_dataset, base_c_path)
+            wandb_logger.after_run(dict(test_c_table=test_c_table,  # wandb here
+                                        test_c_acc=test_c_acc,
+                                        test_c_cm=test_c_cm))
 
         print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 

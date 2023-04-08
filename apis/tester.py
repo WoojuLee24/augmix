@@ -109,6 +109,96 @@ class Tester():
             return test_c_acc, wandb_table, test_c_cm
 
 
+    def test_c_cls(self, test_dataset, base_path=None):
+        """Evaluate network on given corrupted dataset."""
+        wandb_features, wandb_plts = dict(), dict()
+        wandb_table = pd.DataFrame(columns=CORRUPTIONS, index=['loss', 'error'])
+        confusion_matrices = []
+        if (self.args.dataset == 'cifar10') or (self.args.dataset == 'cifar100'):
+            corruption_accs = []
+            for corruption in CORRUPTIONS:
+                # Reference to original data is mutated
+                test_dataset.data = np.load(base_path + corruption + '.npy')
+                test_dataset.targets = torch.LongTensor(np.load(base_path + 'labels.npy'))
+                test_loader = torch.utils.data.DataLoader(
+                    test_dataset,
+                    batch_size=self.args.eval_batch_size,
+                    shuffle=False,
+                    num_workers=self.args.num_workers,
+                    pin_memory=True)
+
+                test_loss, test_acc, _, confusion_matrix = self.test(test_loader)
+
+                wandb_table[corruption]['loss'] = test_loss
+                wandb_table[corruption]['error'] = 100 - 100. * test_acc
+                # wandb_plts[corruption] = confusion_matrix
+
+                corruption_accs.append(test_acc)
+                confusion_matrices.append(confusion_matrix)
+                print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
+                    corruption, test_loss, 100 - 100. * test_acc))
+
+                # class-wise error
+                cls_err = [100 - confusion_matrix[i, i] / confusion_matrix[i, :].sum() * 100 for i in range(10)]
+                for i in range(10):
+                    wandb_features[f'test_cls/{corruption}_{i}_error'] = cls_err[i]
+
+            # return np.mean(corruption_accs), wandb_features
+            test_c_acc = np.mean(corruption_accs)
+            test_c_cm = np.mean(confusion_matrices, axis=0)
+            return test_c_acc, wandb_table, test_c_cm, wandb_features
+        else:  # imagenet
+            corruption_accs = []
+
+            mean = [0.485, 0.456, 0.406]
+            std = [0.229, 0.224, 0.225]
+            preprocess = transforms.Compose(
+                [transforms.ToTensor(),
+                 transforms.Normalize(mean, std)])
+            test_transform = transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                preprocess,
+            ])
+
+            for c in CORRUPTIONS:
+                print(c)
+                severity_accs = []
+                severity_losses = []
+                for s in range(1, 6):
+                    # valdir = os.path.join(self.args.corrupted_data, c, str(s))
+                    valdir = os.path.join(base_path, c, str(s))
+                    test_dataset = datasets.ImageFolder(valdir, test_transform)
+                    val_loader = torch.utils.data.DataLoader(
+                        test_dataset,
+                        batch_size=self.args.eval_batch_size,
+                        shuffle=False,
+                        num_workers=self.args.num_workers,
+                        pin_memory=True)
+
+                    loss, acc1, _, confusion_matrix = self.test(val_loader)
+                    severity_accs.append(acc1)
+                    severity_losses.append(loss)
+
+                test_loss = np.mean(severity_losses)
+                test_acc = np.mean(severity_accs)
+                wandb_table[c]['loss'] = test_loss
+                wandb_table[c]['error'] = 100 - 100. * test_acc
+
+                corruption_accs.append(test_acc)
+                confusion_matrices.append(confusion_matrix)
+                print('{}\n\tTest Loss {:.3f} | Test Error {:.3f}'.format(
+                    c, test_loss, 100 - 100. * test_acc))
+
+                # class-wise error
+                cls_err = [100 - confusion_matrix[i, i] / confusion_matrix[i, :].sum() * 100 for i in range(1000)]
+                for i in range(10):
+                    wandb_features[f'test_cls/{c}_{i}_error'] = cls_err[i]
+
+            test_c_acc = np.mean(corruption_accs)
+            test_c_cm = np.mean(confusion_matrices, axis=0)
+            return test_c_acc, wandb_table, test_c_cm, wandb_features
+
     def test(self, data_loader, data_type='clean'):
         """Evaluate network on given dataset."""
         self.net.eval()
@@ -121,15 +211,15 @@ class Tester():
                 images, targets = images.cuda(), targets.cuda()
                 logits = self.net(images)
 
-                if self.args.analysis:
-                    from utils.visualize import multi_plot_tsne
-                    input_list = [self.net.module.features, logits]
-                    targets_list = [targets, targets]
-                    title_list = ['features', 'logits']
-                    save_path = os.path.join(self.args.save, 'analysis', data_type + '.jpg')
-                    tsne, fig = multi_plot_tsne(input_list, targets_list, title_list, rows=1, cols=2,
-                                                perplexity=30, n_iter=300,
-                                                save=save_path, log_wandb=self.args.wandb, data_type=data_type)
+                # if self.args.analysis:
+                #     from utils.visualize import multi_plot_tsne
+                #     input_list = [self.net.module.features, logits]
+                #     targets_list = [targets, targets]
+                #     title_list = ['features', 'logits']
+                #     save_path = os.path.join(self.args.save, 'analysis', data_type + '.jpg')
+                #     tsne, fig = multi_plot_tsne(input_list, targets_list, title_list, rows=1, cols=2,
+                #                                 perplexity=30, n_iter=300,
+                #                                 save=save_path, log_wandb=self.args.wandb, data_type=data_type)
 
                 loss = F.cross_entropy(logits, targets)
                 pred = logits.data.max(1)[1]
