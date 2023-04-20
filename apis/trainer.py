@@ -1475,12 +1475,12 @@ class Trainer():
                 aux_targets = 1 / self.classes * torch.ones(self.args.aux_num, self.classes)
                 if self.args.aux_type == 'unoise':
                     # s1, s2 = self.args.aux_severity * (2 * torch.rand(2) - 1)
-                    s1 = self.args.aux_severity * torch.rand((self.args.aux_num, 1, 1, 1))
-                    s2 = self.args.aux_severity * torch.rand((self.args.aux_num, 1, 1, 1))
-
                     B, C, H, W = aux_images[1].size()
-                    unoise1 = 2 * torch.rand(self.args.aux_num, C, H, W) - 1
-                    unoise2 = 2 * torch.rand(self.args.aux_num, C, H, W) - 1
+                    s1 = self.args.aux_severity * torch.rand((B, 1, 1, 1))
+                    s2 = self.args.aux_severity * torch.rand((B, 1, 1, 1))
+
+                    unoise1 = 2 * torch.rand(B, C, H, W) - 1
+                    unoise2 = 2 * torch.rand(B, C, H, W) - 1
                     aux_images[1] = aux_images[1] + s1 * unoise1
                     aux_images[2] = aux_images[2] + s2 * unoise2
 
