@@ -129,15 +129,28 @@ def get_args_from_parser():
                         default='none',
                         choices=['none', 'v0.1', 'v0.2', 'v0.3'],
                         help='Choose domain generalization augmentation methods')
+    parser.add_argument('--aux-dataset', '-auxd',
+                        type=str,
+                        default='none',
+                        choices=['none', 'fractals', 'imagenet'],
+                        help='Choose auxiliary datasets')
     parser.add_argument('--aux-num', '-auxn',
                         type=int,
                         default=1,
                         help='number of images with uniform labels')
     parser.add_argument('--aux-type', '-auxt',
                         type=str,
-                        default='unoise',
-                        choices=['unoise', 'gnoise', 'mix'],
+                        default='none',
+                        choices=['none', 'unoise', 'gnoise', 'mix', 'mix_unoise', 'mixup_unoise', 'fractals'],
                         help='number of images with uniform labels')
+    parser.add_argument('--aux-severity', '-auxs',
+                        type=float,
+                        default=1,
+                        help='number of images with uniform labels')
+    parser.add_argument('--aux-lambda', '-auxl',
+                        type=float,
+                        default=1,
+                        help='lambda of uniform label loss')
 
     ## opl option ##
     parser.add_argument('--opl-norm', action='store_true', help='opl feature normalization')
@@ -293,8 +306,11 @@ def main():
     #####################
     ### Load datasets ###
     #####################
-    train_dataset, test_dataset, num_classes, base_c_path, prime_module = build_dataset(args)
+    train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset = build_dataset(args)
     train_loader, test_loader = build_dataloader(train_dataset, test_dataset, args)
+    # if args.aux_type == 'fractals':
+    if args.aux_dataset in ['fractals', 'imagenet']:
+        aux_loader = build_auxloader(aux_dataset, args)
 
     ####################
     ### Create model ###
@@ -478,12 +494,14 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_save_grad(train_loader)
             elif args.aug == "prime":
                 train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
-            elif args.uniform_label in ['v0.1', 'v0.2', 'v0.3']:
+            elif args.uniform_label in ['v0.1']:
                 train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
+            elif args.aux_dataset in ['fractals', 'imagenet']:
+                train_loss_ema, train_features, train_cms = trainer.train_auxd(train_loader, aux_loader)
             elif args.cls_dg != -1:
                 train_loss_ema, train_features, train_cms = trainer.train_cls(train_loader)
             else:
-                train_loss_ema, train_features, train_cms = trainer.train(train_loader)
+                 train_loss_ema, train_features, train_cms = trainer.train(train_loader)
 
             # wandb_logger.after_train_epoch(dict(train_features=train_features))
 
@@ -532,33 +550,40 @@ def main():
                 .format((epoch + 1), int(time.time() - begin_time), train_loss_ema,
                         test_loss, 100 - 100. * test_acc))
 
+        test_loss, test_acc, _, test_cm = tester.test(test_loader)
+        test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
 
-        if args.cls_dg != -1:
-            test_c_acc, test_c_table, test_c_cm, test_c_features = tester.test_c_cls(test_dataset,
-                                                                                     base_c_path)  # plot t-sne features
+        wandb_logger.log_evaluate(dict(test_acc=test_acc,
+                                       test_cm=test_cm,
+                                       test_c_table=test_c_table,
+                                       test_c_acc=test_c_acc,
+                                       test_c_cm=test_c_cm))
 
-            print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+        # wandb_logger.after_run(dict(test_c_table=test_c_table,  # wandb here
+        #                             test_c_acc=test_c_acc,
+        #                             test_c_cm=test_c_cm))
 
-            wandb_logger.log_evaluate(dict(test_c_cm=test_c_cm,
-                                           test_c_table=test_c_table,
-                                           test_c_acc=test_c_acc,
-                                           test_c_features=test_c_features
-                                           ))
-        else:
-
-            test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
-            # tsne
-            # test_tsne = tester.test_c(test_dataset, base_c_path)
-            wandb_logger.after_run(dict(test_c_table=test_c_table,  # wandb here
-                                        test_c_acc=test_c_acc,
-                                        test_c_cm=test_c_cm))
-
+        print('Clean Error {:.2f}'.format(100 - 100. * test_acc))
         print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 
         with open(log_path, 'a') as f:
             f.write('%03d,%05d,%0.6f,%0.5f,%0.2f\n' %
                     (args.epochs + 1, 0, 0, 0, 100 - 100 * test_c_acc))
 
+
+        # analysis
+        # if args.cls_dg != -1:
+        #     test_c_acc, test_c_table, test_c_cm, test_c_features = tester.test_c_cls(test_dataset,
+        #                                                                              base_c_path)  # plot t-sne features
+        #
+        #     wandb_logger.log_evaluate(dict(test_c_cm=test_c_cm,
+        #                                    test_c_table=test_c_table,
+        #                                    test_c_acc=test_c_acc,
+        #                                    test_c_features=test_c_features
+        #                                    ))
+
+        # tsne
+        # test_tsne = tester.test_c(test_dataset, base_c_path)
 
 if __name__ == '__main__':
     # config_flags.DEFINE_config_file('config') # prime

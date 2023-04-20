@@ -83,6 +83,8 @@ def build_dataset(args, corrupted=False):
         aug = args.aug
         no_jsd = args.no_jsd
         prime_module = None
+        aux_dataset = None
+
         if aug == 'none':
             train_dataset = BaseDataset(train_dataset, preprocess, no_jsd)
         elif aug == 'augmix':
@@ -134,7 +136,6 @@ def build_dataset(args, corrupted=False):
                 aug_module=PRIMEAugModule(augmentations),
             )
 
-
         elif aug == 'pixmix':
             if args.use_300k:
                 mixing_set = RandomImages300K(file='300K_random_images.npy', transform=transforms.Compose(
@@ -152,7 +153,23 @@ def build_dataset(args, corrupted=False):
         elif aug == 'apr_s':
             train_dataset = AprS(train_dataset_apr, args, no_jsd)
 
-        return train_dataset, test_dataset, num_classes, base_c_path, prime_module
+        #################
+        ## aux dataset ##
+        #################
+        if args.aux_dataset == 'fractals':
+            path = os.path.join('/ws/data', 'fractals_and_fvis')
+            mixing_set = datasets.ImageFolder(path, transform=mixing_set_transform)
+            aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
+                                        args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+                                        args.mixture_coefficient)
+        elif args.aux_dataset == 'imagenet':
+            path = os.path.join('/ws/data', args.aux_dataset, 'train')
+            mixing_set = datasets.ImageFolder(path, transform=mixing_set_transform)
+            aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
+                                        args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+                                        args.mixture_coefficient)
+
+        return train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset
 
 
 def build_dataloader(train_dataset, test_dataset, args):
@@ -167,3 +184,13 @@ def build_dataloader(train_dataset, test_dataset, args):
                                               num_workers=args.num_workers,
                                               pin_memory=True)
     return train_loader, test_loader
+
+def build_auxloader(aux_dataset, args):
+    aux_loader = torch.utils.data.DataLoader(aux_dataset,
+                                             batch_size=args.aux_num,
+                                             shuffle=args.shuffle,
+                                             num_workers=args.num_workers,
+                                             pin_memory=True)
+
+
+    return aux_loader

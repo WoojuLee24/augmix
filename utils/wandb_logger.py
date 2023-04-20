@@ -145,6 +145,8 @@ class WandbLogger():
             if 'test_c_features' in wandb_input:
                 for key, value in wandb_input['test_c_features'].items():
                     self.wandb.log({key: value})
+            if 'test_acc' in wandb_input:
+                self.wandb.log({"test/clean_error: ": 100 - 100. * wandb_input['test_acc']})
             if 'test_cm' in wandb_input:
                 if self.args.dataset == 'imagenet':
                     # test_cm = self.convert_to_df(wandb_input['test_cm'])
