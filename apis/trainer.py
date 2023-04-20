@@ -1472,7 +1472,8 @@ class Trainer():
             else:
                 # get aux_images and aux targets
                 aux_images, _ = aux_data
-                aux_targets = 1 / self.classes * torch.ones(self.args.aux_num, self.classes)
+                aux_num = aux_images[1].size(0)
+                aux_targets = 1 / self.classes * torch.ones(aux_num, self.classes)
                 if self.args.aux_type == 'unoise':
                     # s1, s2 = self.args.aux_severity * (2 * torch.rand(2) - 1)
                     B, C, H, W = aux_images[1].size()
@@ -1499,27 +1500,28 @@ class Trainer():
                 logits_all = self.net(images_all)
                 logits_clean, logits_aug1, logits_aug2 = torch.chunk(logits_all, 3)
 
-                ce_loss_ori = F.cross_entropy(logits_clean[:-self.args.aux_num], targets[:-self.args.aux_num])
+                assert logits_clean.size(0) == targets.size(0)
+                ce_loss_ori = F.cross_entropy(logits_clean[:-aux_num], targets[:-aux_num])
 
                 if self.args.uniform_label == 'none':
                     ce_loss_aux = 0
                 else:
-                    ce_loss_aux = F.cross_entropy(logits_clean[-self.args.aux_num:], targets[-self.args.aux_num:])
+                    ce_loss_aux = F.cross_entropy(logits_clean[-aux_num:], targets[-aux_num:])
                     ce_loss_aux_ += ce_loss_aux.detach()
 
                 additional_loss_ori, feature_ori = get_additional_loss(self.args,
-                                                                       logits_clean[:-self.args.aux_num],
-                                                                       logits_aug1[:-self.args.aux_num],
-                                                                       logits_aug2[:-self.args.aux_num],
+                                                                       logits_clean[:-aux_num],
+                                                                       logits_aug1[:-aux_num],
+                                                                       logits_aug2[:-aux_num],
                                                                        self.args.lambda_weight,
                                                                        targets,
                                                                        self.args.temper,
                                                                        self.args.reduction)
 
                 additional_loss_aux, feature_aux = get_additional_loss(self.args,
-                                                                       logits_clean[-self.args.aux_num:],
-                                                                       logits_aug1[-self.args.aux_num:],
-                                                                       logits_aug2[-self.args.aux_num:],
+                                                                       logits_clean[-aux_num:],
+                                                                       logits_aug1[-aux_num:],
+                                                                       logits_aug2[-aux_num:],
                                                                        self.args.lambda_weight,
                                                                        targets,
                                                                        self.args.temper,
@@ -1542,10 +1544,10 @@ class Trainer():
                 # for logging error
                 self.wandb_input = self.net.get_wandb_input()
 
-                logits_ori = logits_clean[:-self.args.aux_num].detach()
-                logits_aux = logits_clean[-self.args.aux_num:].detach()
-                targets_ori = targets[:-self.args.aux_num].detach()
-                targets_aux = targets[-self.args.aux_num:].detach()
+                logits_ori = logits_clean[:-aux_num].detach()
+                logits_aux = logits_clean[-aux_num:].detach()
+                targets_ori = targets[:-aux_num].detach()
+                targets_aux = targets[-aux_num:].detach()
 
                 pred = logits_ori.data.max(1)[1]
                 labels = targets_ori.max(1)[1]
