@@ -132,7 +132,7 @@ def get_args_from_parser():
     parser.add_argument('--aux-dataset', '-auxd',
                         type=str,
                         default='none',
-                        choices=['none', 'fractals', 'imagenet'],
+                        choices=['none', 'fractals', 'imagenet', 'mmix'],
                         help='Choose auxiliary datasets')
     parser.add_argument('--aux-num', '-auxn',
                         type=int,
@@ -151,6 +151,10 @@ def get_args_from_parser():
                         type=float,
                         default=1,
                         help='lambda of uniform label loss')
+    parser.add_argument('--mmix-severity', '-mmixs',
+                        type=int,
+                        default=16,
+                        help='mmix number of images')
 
     ## opl option ##
     parser.add_argument('--opl-norm', action='store_true', help='opl feature normalization')
@@ -311,6 +315,8 @@ def main():
     # if args.aux_type == 'fractals':
     if args.aux_dataset in ['fractals', 'imagenet']:
         aux_loader = build_auxloader(aux_dataset, args)
+    else:
+        aux_loader = None
 
     ####################
     ### Create model ###
@@ -498,6 +504,8 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
             elif args.aux_dataset in ['fractals', 'imagenet']:
                 train_loss_ema, train_features, train_cms = trainer.train_auxd(train_loader, aux_loader)
+            elif args.aux_dataset in ['mmix']:
+                train_loss_ema, train_features, train_cms = trainer.train_mmix(train_loader, aux_loader)
             elif args.cls_dg != -1:
                 train_loss_ema, train_features, train_cms = trainer.train_cls(train_loader)
             else:

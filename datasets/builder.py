@@ -168,6 +168,12 @@ def build_dataset(args, corrupted=False):
             aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
                                         args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
                                         args.mixture_coefficient)
+        elif args.aux_dataset == 'unoise':
+            path = os.path.join('/ws/data', args.aux_dataset, 'train')
+            mixing_set = datasets.ImageFolder(path, transform=mixing_set_transform)
+            aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
+                                        args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+                                        args.mixture_coefficient)
 
         return train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset
 
