@@ -1679,7 +1679,7 @@ class Trainer():
             else:
                 # get aux_images and aux targets
                 # aux_images, _ = aux_data
-                aux_image, aux_targets = self.generate_uniform_label(images[0], targets)
+                # aux_image, aux_targets = self.generate_uniform_label(images[0], targets)
                 mixture_width = self.args.mmix_severity
                 ws = np.float32(np.random.dirichlet([1] * mixture_width))
                 # lam = torch.distributions.beta(severity, severity)
@@ -1691,11 +1691,12 @@ class Trainer():
                     index = torch.randperm(B)
                     mixed += w * image[index]
                 aux_image = mixed[:self.args.aux_num]
-                aux_targets = 1 / self.classes * torch.ones(self.args.aux_num, self.classes)
+                aux_num = aux_image.size(0)
+                aux_targets = 1 / self.classes * torch.ones(aux_num, self.classes)
                 self.debug_images(image, title='orig')
                 self.debug_images(aux_image, title='mmix')
 
-                aux_num = self.args.aux_num
+                # aux_num = self.args.aux_num
                 # aux_targets = 1 / self.classes * torch.ones(aux_num, self.classes)
                 aux_images = []
                 aux_images.append(aux_image)
@@ -1726,7 +1727,6 @@ class Trainer():
                 logits_all = self.net(images_all)
                 logits_clean, logits_aug1, logits_aug2 = torch.chunk(logits_all, 3)
 
-                assert logits_clean.size(0) == targets.size(0)
                 ce_loss_ori = F.cross_entropy(logits_clean[:-aux_num], targets[:-aux_num])
 
                 if self.args.uniform_label == 'none':
