@@ -112,6 +112,7 @@ def get_args_from_parser():
                         type=str,
                         choices=['none', 'jsd',
                                  'jsdvl_v0.1',
+                                 'msev1.1',
                                  'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02', 'jsdv4.ntxent.detach',
                                  'opl',
                                  ],
@@ -151,6 +152,10 @@ def get_args_from_parser():
                         type=float,
                         default=1,
                         help='lambda of uniform label loss')
+    parser.add_argument('--aux-hlambda', '-auxhl',
+                        type=float,
+                        default=1,
+                        help='lambda of uniform label loss')
     parser.add_argument('--mmix-severity', '-mmixs',
                         type=int,
                         default=16,
@@ -167,6 +172,7 @@ def get_args_from_parser():
     parser.add_argument('--jsd-layer', default='features', type=str, choices=['features', 'logits'],
                         help='apply jsd loss for the selected layer')
     parser.add_argument('--hook', action='store_true', help='hook layers for feature extraction')
+    parser.add_argument('--hook-layer', default='None', help='which layer to hook')
     parser.add_argument('--all-ops', '-all', action='store_true',
                         help='Turn on all operations (+brightness,contrast,color,sharpness).')
 
@@ -335,11 +341,16 @@ def main():
         hook = FeatureHook([
                             # "module.relu",
                             "module.avgpool",
-                            "module.proj.3"
+                            # "module.proj.3"
                             # "module.block1.layer.5.relu2",
                             # "module.block2.layer.5.relu2",
                             # "module.block3.layer.5.relu2",
                             # 'module.block3',
+                            ])
+        hook.hook_multi_layer(net)
+    elif args.hook_layer != 'None':
+        hook = FeatureHook([
+                            args.hook_layer
                             ])
         hook.hook_multi_layer(net)
 
@@ -502,6 +513,8 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
             elif args.uniform_label in ['v0.1']:
                 train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
+            elif (args.aux_dataset in ['fractals', 'imagenet']) and (args.aux_hlambda!=0):
+                train_loss_ema, train_features, train_cms = trainer.train_auxhd(train_loader, aux_loader)
             elif args.aux_dataset in ['fractals', 'imagenet']:
                 train_loss_ema, train_features, train_cms = trainer.train_auxd(train_loader, aux_loader)
             elif args.aux_dataset in ['mmix']:

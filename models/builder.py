@@ -13,7 +13,7 @@ from third_party.WideResNet_pytorch.wideresnet_fc import WideResNetFc
 from third_party.WideResNet_pytorch.wideresnet_auxbn import WideResNetAuxBN
 from third_party.WideResNet_pytorch.wideresnet_expand import WideResNetExpand
 from third_party.WideResNet_pytorch.wideresnet_simsiam import WideResNetSimsiam
-from third_party.WideResNet_pytorch.wideresnetproj import WideResNetProj
+from third_party.WideResNet_pytorch.wideresnet_proj import WideResNetProj
 from third_party.supervised_contrastive_net import SupConNet
 from third_party.WideResNet_pytorch.wideresnet_encoder import WideResNetEncoder
 
@@ -36,7 +36,7 @@ def build_net(args, num_classes):
         elif args.model == 'wrn_encoder':
             net = WideResNetEncoder(args.layers, num_classes, args.widen_factor, args.droprate)
         elif args.model == 'wrnproj':
-            net = WideResNetProj(args.layers, num_classes, args.widen_factor, args.droprate, args.num_proj, args.proj_channels, args.proj_from)
+            net = WideResNetProj(args, args.layers, num_classes, args.widen_factor, args.droprate)
         elif args.model == 'allconv':
             net = AllConvNet(num_classes)
         elif args.model == 'resnext':
