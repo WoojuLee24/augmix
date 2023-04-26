@@ -173,7 +173,7 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
 
     # mse
     elif name == 'msev1.0':
-        loss = mse_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        loss = msev1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'msev1.0.detach':
         loss = mse_v1_0_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
 
@@ -193,6 +193,8 @@ def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
         loss, features = 0, dict()
     elif name == 'msev1.1':
         loss, features = msev1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight)
+    elif name == 'msev1.0':
+        loss, features = msev1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsd':
         loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'jsdv4.ntxent':
@@ -2418,7 +2420,7 @@ def kl_v1_2_inv(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper
     return loss
 
 
-def mse_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
+def msev1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
     # collapse with lw 12
     B, C = logits_clean.size()
 
@@ -2427,7 +2429,7 @@ def mse_v1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.
             F.mse_loss(logits_aug1, logits_aug2, reduction='sum')) / 3 / B
 
     loss = lambda_weight * distance
-    feature = {'mse_distance': distance.detach()}
+    feature = {'distance': distance.detach()}
 
     return loss, feature
 

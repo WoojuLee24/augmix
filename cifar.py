@@ -112,7 +112,7 @@ def get_args_from_parser():
                         type=str,
                         choices=['none', 'jsd',
                                  'jsdvl_v0.1',
-                                 'msev1.1',
+                                 'msev1.0', 'msev1.1',
                                  'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02', 'jsdv4.ntxent.detach',
                                  'opl',
                                  ],

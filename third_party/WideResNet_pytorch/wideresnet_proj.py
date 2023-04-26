@@ -156,15 +156,6 @@ class WideResNetProj(nn.Module):
     def forward(self, x, targets=None):
         self.features = self.extract_features(x)
         logits = self.fc(self.features)
-        k = self.proj(self.features)
-
-        # for key, value in self.hook_features.items():
-        #     f = torch.mean(torch.mean(value[0], dim=2), dim=2)
-        #     B, C = f.size()
-        #     p = self.proj(f)
-        # # self.features = self.fc1(self.extract_features(x))
-        # # logits = self.fc2(self.features)
-
 
         return logits
 

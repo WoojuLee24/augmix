@@ -206,24 +206,15 @@ class Tester():
         wandb_features = dict()
         confusion_matrix = torch.zeros(self.classes, self.classes)
         tsne_features = []
+        self.net.module.hook_features.clear()
         with torch.no_grad():
             for images, targets in data_loader:
                 images, targets = images.cuda(), targets.cuda()
                 logits = self.net(images)
 
-                # if self.args.analysis:
-                #     from utils.visualize import multi_plot_tsne
-                #     input_list = [self.net.module.features, logits]
-                #     targets_list = [targets, targets]
-                #     title_list = ['features', 'logits']
-                #     save_path = os.path.join(self.args.save, 'analysis', data_type + '.jpg')
-                #     tsne, fig = multi_plot_tsne(input_list, targets_list, title_list, rows=1, cols=2,
-                #                                 perplexity=30, n_iter=300,
-                #                                 save=save_path, log_wandb=self.args.wandb, data_type=data_type)
-
                 loss = F.cross_entropy(logits, targets)
                 pred = logits.data.max(1)[1]
-                total_loss += float(loss.data)
+                total_loss += loss.item()
                 total_correct += pred.eq(targets.data).sum().item()
 
                 for t, p in zip(targets.view(-1), pred.view(-1)):
