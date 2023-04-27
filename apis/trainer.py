@@ -1790,7 +1790,9 @@ class Trainer():
                 # ce_loss_aux_ += ce_loss_aux.detach()
                 jsd_distance_ori += feature_ori['jsd_distance'].detach()
                 jsd_distance_aux += feature_aux['jsd_distance'].detach()
-                hook_distance_aux += hfeature_aux['distance'].detach()
+                # hook_distance_aux += hfeature_aux['distance'].detach()
+                for key, value in hfeature_aux.items():
+                    hook_distance_aux += value.detach()
 
                 # for logging error
                 self.wandb_input = self.net.get_wandb_input()
