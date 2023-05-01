@@ -194,7 +194,7 @@ def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
     elif name == 'cossim':
         loss, features = cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction)
     elif name == 'ssim':
-        loss, features = ssim(args, logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction)
+        loss, features = ssim(args, logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction='mean')
     elif name == 'msev1.1':
         loss, features = msev1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'msev1.0':
@@ -3218,7 +3218,7 @@ def create_window(window_size, channel):
     return window
 
 
-def _ssim(img1, img2, window, window_size, channel, size_average=True):
+def _ssim(img1, img2, window, window_size, channel, reduction):
     mu1 = F.conv2d(img1, window, padding=window_size // 2, groups=channel)
     mu2 = F.conv2d(img2, window, padding=window_size // 2, groups=channel)
 
@@ -3234,8 +3234,11 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
     C2 = 0.03 ** 2
 
     ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
-    if size_average:
+    B, C, H, W = ssim_map.size()
+    if reduction == 'mean':
         return ssim_map.mean()
+    elif reduction == 'batchmean':
+        return ssim_map.sum() / B / H / W
     else:
         return ssim_map.mean(1).mean(1).mean(1)
 
@@ -3254,17 +3257,15 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
 def ssim(args, img_clean, img_aug1, img_aug2, lambda_weight, targets, temper=1, reduction='mean'):
 
     window_size = args.window
-    if reduction == 'mean':
-        size_average = True
     (_, channel, _, _) = img_clean.size()
     window = create_window(window_size, channel)
     if img_clean.is_cuda:
         window = window.cuda(img_clean.get_device())
     window = window.type_as(img_clean)
 
-    loss1 = _ssim(img_clean, img_aug1, window, window_size, channel, size_average)
-    loss2 = _ssim(img_aug1, img_aug2, window, window_size, channel, size_average)
-    loss3 = _ssim(img_aug2, img_clean, window, window_size, channel, size_average)
+    loss1 = _ssim(img_clean, img_aug1, window, window_size, channel, reduction)
+    loss2 = _ssim(img_aug1, img_aug2, window, window_size, channel, reduction)
+    loss3 = _ssim(img_aug2, img_clean, window, window_size, channel, reduction)
 
     loss = 1 - (loss1 + loss2 + loss3) / 3
     features = {'distance': loss.detach()}
