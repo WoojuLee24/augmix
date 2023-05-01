@@ -1772,10 +1772,14 @@ class Trainer():
                 for hkey, hfeature in self.net.module.hook_features.items():
                     feature_clean, feature_aug1, feature_aug2 = torch.chunk(hfeature[0], 3)
                     feature_clean, feature_aug1, feature_aug2 = feature_clean[-aux_num:], feature_aug1[-aux_num:], feature_aug2[-aux_num:],
-                    feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), feature_aug1.view(B, -1), feature_aug2.view(B, -1)
-                    B, C = feature_clean.size()
-                    # if multi hook layer -> have to be fixed.
-                    hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1, feature_aug2, self.args.aux_hlambda)
+                    if self.args.additional_loss2 == 'ssim':
+                        hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1,
+                                                                           feature_aug2, self.args.aux_hlambda)
+                    else:
+                        feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), feature_aug1.view(B, -1), feature_aug2.view(B, -1)
+                        B, C = feature_clean.size()
+                        # if multi hook layer -> have to be fixed.
+                        hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1, feature_aug2, self.args.aux_hlambda)
 
                 ce_loss = ce_loss_ori + self.args.aux_lambda * ce_loss_aux
                 additional_loss = additional_loss_ori # + self.args.aux_lambda * additional_loss_aux

@@ -115,6 +115,8 @@ def get_args_from_parser():
                                  'msev1.0', 'msev1.1',
                                  'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02', 'jsdv4.ntxent.detach',
                                  'opl',
+                                 'cossim',
+                                 'ssim',
                                  ],
                         help='Type of additiona loss2')
 
@@ -160,6 +162,9 @@ def get_args_from_parser():
                         type=int,
                         default=16,
                         help='mmix number of images')
+
+    ## ssim option ##
+    parser.add_argument('--window', '-w', default=3, type=int, help='window size for gaussian')
 
     ## opl option ##
     parser.add_argument('--opl-norm', action='store_true', help='opl feature normalization')

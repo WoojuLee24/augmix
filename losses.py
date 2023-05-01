@@ -191,6 +191,10 @@ def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
     name = args.additional_loss2
     if name == 'none':
         loss, features = 0, dict()
+    elif name == 'cossim':
+        loss, features = cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction)
+    elif name == 'ssim':
+        loss, features = ssim(args, logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction)
     elif name == 'msev1.1':
         loss, features = msev1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'msev1.0':
@@ -2468,16 +2472,11 @@ def cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, tempe
     sim1 = F.cosine_similarity(logits_clean, logits_aug1)
     sim2 = F.cosine_similarity(logits_aug1, logits_aug2)
     sim3 = F.cosine_similarity(logits_aug2, logits_clean)
-    logits = (sim1 + sim2 + sim3) / 3
-    loss = - logits.mean() / temper * lambda_weight
+    logits = 1 - (sim1 + sim2 + sim3) / 3
+    loss = logits.mean() / temper * lambda_weight
+    features = {'distance': logits.mean().detach()}
 
-    # jsd1 = jsd_distance(logits_clean, logits_aug1, 'batchmean')
-    # jsd2 = jsd_distance(logits_aug1, logits_aug2, 'batchmean')
-    # jsd3 = jsd_distance(logits_aug2, logits_clean, 'batchmean')
-    # logits2 = (jsd1 + jsd2 + jsd3) / 3
-    # logits2 = logits2 / temper
-
-    return loss
+    return loss, features
 
 def ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=1):
 
@@ -3202,3 +3201,73 @@ def opl(features_clean, features_aug1, features_aug2, args, lambda_weight=12, te
 
     return loss, features
 
+
+from torch.autograd import Variable
+from math import exp
+
+
+def gaussian(window_size, sigma):
+    gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
+    return gauss / gauss.sum()
+
+
+def create_window(window_size, channel):
+    _1D_window = gaussian(window_size, 1.5).unsqueeze(1)
+    _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)
+    window = Variable(_2D_window.expand(channel, 1, window_size, window_size).contiguous())
+    return window
+
+
+def _ssim(img1, img2, window, window_size, channel, size_average=True):
+    mu1 = F.conv2d(img1, window, padding=window_size // 2, groups=channel)
+    mu2 = F.conv2d(img2, window, padding=window_size // 2, groups=channel)
+
+    mu1_sq = mu1.pow(2)
+    mu2_sq = mu2.pow(2)
+    mu1_mu2 = mu1 * mu2
+
+    sigma1_sq = F.conv2d(img1 * img1, window, padding=window_size // 2, groups=channel) - mu1_sq
+    sigma2_sq = F.conv2d(img2 * img2, window, padding=window_size // 2, groups=channel) - mu2_sq
+    sigma12 = F.conv2d(img1 * img2, window, padding=window_size // 2, groups=channel) - mu1_mu2
+
+    C1 = 0.01 ** 2
+    C2 = 0.03 ** 2
+
+    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
+    if size_average:
+        return ssim_map.mean()
+    else:
+        return ssim_map.mean(1).mean(1).mean(1)
+
+
+# def ssim(img1, img2, window_size=11, size_average=True):
+#     (_, channel, _, _) = img1.size()
+#     window = create_window(window_size, channel)
+#
+#     if img1.is_cuda:
+#         window = window.cuda(img1.get_device())
+#     window = window.type_as(img1)
+#
+#     return _ssim(img1, img2, window, window_size, channel, size_average)
+
+
+def ssim(args, img_clean, img_aug1, img_aug2, lambda_weight, targets, temper=1, reduction='mean'):
+
+    window_size = args.window
+    if reduction == 'mean':
+        size_average = True
+    (_, channel, _, _) = img_clean.size()
+    window = create_window(window_size, channel)
+    if img_clean.is_cuda:
+        window = window.cuda(img_clean.get_device())
+    window = window.type_as(img_clean)
+
+    loss1 = _ssim(img_clean, img_aug1, window, window_size, channel, size_average)
+    loss2 = _ssim(img_aug1, img_aug2, window, window_size, channel, size_average)
+    loss3 = _ssim(img_aug2, img_clean, window, window_size, channel, size_average)
+
+    loss = 1 - (loss1 + loss2 + loss3) / 3
+    features = {'distance': loss.detach()}
+    loss = loss * lambda_weight
+
+    return loss, features
