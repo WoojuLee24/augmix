@@ -215,7 +215,8 @@ def get_args_from_parser():
     ## WRNProj Architecture options
     parser.add_argument('--proj-from', default='feature',  choices=['feature', 'logit'], type=str, help='proj from which layer')
     parser.add_argument('--num-proj', default=2, type=int, help='number of proj fc layers')
-    parser.add_argument('--proj-channels', default=128, type=int, help='channels of proj fc layers')
+    parser.add_argument('--proj-in', default=128, type=int, help='channels of proj fc layers')
+    parser.add_argument('--proj-out', default=128, type=int, help='channels of proj fc layers')
 
     ## WRNFc Architecture options
     parser.add_argument('--fcnoise', default='none', type=str, help='fc noise type: none, unoise, gnoise,..')

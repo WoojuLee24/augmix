@@ -109,24 +109,24 @@ class WideResNetProj(nn.Module):
         self.n_channels = n_channels[3]
 
         # proj layers
-        if args.proj_from == 'feature':
-            proj_in_channel = n_channels[3]
-        elif args.proj_from == 'logit':
-            proj_in_channel = num_classes
+        proj_in = args.proj_in
+        proj_out = args.proj_out
 
         if args.num_proj == 3:
-            self.proj = nn.Sequential(nn.Linear(proj_in_channel, n_channels[3]),
-                                      nn.BatchNorm1d(n_channels[3]),
+            self.proj = nn.Sequential(nn.Linear(proj_in, proj_in),
+                                      nn.BatchNorm1d(proj_in),
                                       nn.ReLU(),
-                                      nn.Linear(n_channels[3], n_channels[3]),
-                                      nn.BatchNorm1d(n_channels[3]),
+                                      nn.Linear(proj_in, proj_in),
+                                      nn.BatchNorm1d(proj_in),
                                       nn.ReLU(),
-                                      nn.Linear(n_channels[3], num_classes))
+                                      nn.Linear(proj_in, proj_out))
         elif args.num_proj == 2:
-            self.proj = nn.Sequential(nn.Linear(proj_in_channel, n_channels[3]),
-                                      nn.BatchNorm1d(n_channels[3]),
+            self.proj = nn.Sequential(nn.Linear(proj_in, proj_in),
+                                      nn.BatchNorm1d(proj_in),
                                       nn.ReLU(),
-                                      nn.Linear(n_channels[3], num_classes))
+                                      nn.Linear(proj_in, proj_out))
+        elif args.num_proj == 1:
+            self.proj = nn.Sequential(nn.Linear(proj_in, proj_out))
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -154,8 +154,14 @@ class WideResNetProj(nn.Module):
         return out
 
     def forward(self, x, targets=None):
-        self.features = self.extract_features(x)
-        logits = self.fc(self.features)
+        features = self.extract_features(x)
+        logits = self.fc(features)
+        for key, value in self.hook_features.items():
+            k = value[0]
+            B, C, H, W = k.size()
+            k = k.mean(dim=2).mean(dim=2)   # mean or not?
+            k = k.view(B, -1)
+            self.features = self.proj(k)
 
         return logits
 
