@@ -193,8 +193,12 @@ def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
         loss, features = 0, dict()
     elif name == 'cossim':
         loss, features = cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction)
+    elif name == 'csl2':
+        loss, features = csl2(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction)
     elif name == 'ssim':
         loss, features = ssim(args, logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction='mean')
+    elif name == 'njsd':
+        loss, features = njsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
     elif name == 'msev1.1':
         loss, features = msev1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'msev1.0':
@@ -256,6 +260,33 @@ def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
     p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1),\
                               F.softmax(logits_aug1 / temper, dim=1), \
                             F.softmax(logits_aug2 / temper, dim=1)
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+    jsd_distance = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+    loss = lambda_weight * jsd_distance
+
+    features = {'jsd_distance': jsd_distance.detach(),
+                # 'p_clean': p_clean,
+                # 'p_aug1': p_aug1,
+                # 'p_aug2': p_aug2,
+                }
+
+    return loss, features
+
+
+def njsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
+
+    logits_clean = (logits_clean - logits_clean.mean()) / (logits_clean.std() + 1e-6)
+    logits_aug1 = (logits_aug1 - logits_aug1.mean()) / (logits_aug1.std() + 1e-6)
+    logits_aug2 = (logits_aug2 - logits_aug2.mean()) / (logits_aug2.std() + 1e-6)
+
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1),\
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                              F.softmax(logits_aug2 / temper, dim=1)
 
     # Clamp mixture distribution to avoid exploding KL divergence
     p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
@@ -2477,6 +2508,24 @@ def cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, tempe
     features = {'distance': logits.mean().detach()}
 
     return loss, features
+
+
+def csl2(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=1, reduction='mean'):
+
+    logits_clean, logits_aug1, logits_aug2 = F.normalize(logits_clean, dim=1), \
+                                             F.normalize(logits_aug1, dim=1), \
+                                             F.normalize(logits_aug2, dim=1),
+
+    sim1 = F.cosine_similarity(logits_clean, logits_aug1).pow(2)
+    sim2 = F.cosine_similarity(logits_aug1, logits_aug2).pow(2)
+    sim3 = F.cosine_similarity(logits_aug2, logits_clean).pow(2)
+    logits = 1 - (sim1 + sim2 + sim3) / 3
+    loss = logits.mean() / temper * lambda_weight
+    features = {'distance': logits.mean().detach()}
+
+    return loss, features
+
+
 
 def ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=1):
 

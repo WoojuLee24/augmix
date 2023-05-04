@@ -108,7 +108,7 @@ def get_args_from_parser():
     parser.add_argument('--lambda-beta', '-lb', default=1.0, type=float, help='additional loss weight beta')
 
     parser.add_argument('--additional-loss2', '-al2',
-                        default='jsd',
+                        default='none',
                         type=str,
                         choices=['none', 'jsd',
                                  'jsdvl_v0.1',
@@ -116,7 +116,9 @@ def get_args_from_parser():
                                  'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02', 'jsdv4.ntxent.detach',
                                  'opl',
                                  'cossim',
+                                 'csl2',
                                  'ssim',
+                                 'njsd',
                                  ],
                         help='Type of additiona loss2')
 

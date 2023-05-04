@@ -156,6 +156,7 @@ def build_dataset(args, corrupted=False):
         #################
         ## aux dataset ##
         #################
+        no_jsd = False
         if args.aux_dataset == 'fractals':
             path = os.path.join('/ws/data', 'fractals_and_fvis')
             mixing_set = datasets.ImageFolder(path, transform=mixing_set_transform)

@@ -1644,70 +1644,82 @@ class Trainer():
                 aux_data = next(aux_iterator)
 
             if self.args.no_jsd or self.args.aug == 'none':
-                # images, targets = images.to(self.device), targets.to(self.device)
-                if self.args.siamese == True:
-                    aux_images, aux_targets = self.generate_uniform_label(images, targets)
-                    images, targets = images.to(self.device), targets.to(self.device)
-                    targets = F.one_hot(targets).float()
+                # # debug
+                # self.debug_images(aux_images, title='aux')
+                # self.debug_images(images, title='ori')
+                aux_images, _ = aux_data
+                aux_num = aux_images[1].size(0)
+                num = images.size(0)
+                aux_targets = 1 / self.classes * torch.ones(self.args.aux_num, self.classes)
+                if self.args.aux_type == 'unoise':
+                    # s1, s2 = self.args.aux_severity * (2 * torch.rand(2) - 1)
+                    B, C, H, W = aux_images[1].size()
+                    s1 = self.args.aux_severity * torch.rand((B, 1, 1, 1))
+                    s2 = self.args.aux_severity * torch.rand((B, 1, 1, 1))
 
-                    aux_logits = self.net(aux_images)
-                    logits = self.net(images)
+                    unoise1 = 2 * torch.rand(B, C, H, W) - 1
+                    unoise2 = 2 * torch.rand(B, C, H, W) - 1
+                    aux_images[1] = aux_images[1] + s1 * unoise1
+                    aux_images[2] = aux_images[2] + s2 * unoise2
 
-                    loss = F.cross_entropy(logits, targets) + F.cross_entropy(aux_logits, aux_targets)
 
-                    total_ce_loss += float(loss.data)
-                    total_additional_loss = 0.
+                targets = F.one_hot(targets).long()
+                aux_images = torch.cat(aux_images, dim=0)
+                images = torch.cat((images, aux_images), dim=0).to(self.device)
+                # images = torch.cat(([images], aux_images), dim=0).to(self.device)
+                targets = torch.cat((targets, aux_targets), dim=0).to(self.device)
 
-                    pred = logits.data.max(1)[1]
-                    labels = targets.max(1)[1]
+                logits = self.net(images)
 
-                    total_uniform_error += (torch.abs(aux_logits - aux_targets)).sum()
-                    total_correct += pred.eq(labels.data).sum().item()
-                    acc1, acc5 = accuracy(logits, labels, topk=(1, 5))
+                ce_loss_ori = F.cross_entropy(logits[:num], targets[:num])
+                # ce_loss_aux = F.cross_entropy(logits[-self.args.aux_num:], targets[-self.args.aux_num:])
 
-                    self.wandb_input = self.net.get_wandb_input()
+                # hook loss
+                if self.args.additional_loss2 != 'none':
+                    for hkey, hfeature in self.net.module.hook_features.items():
+                        hfeature = hfeature[0][num:]
+                        feature_clean, feature_aug1, feature_aug2 = torch.chunk(hfeature, 3)
 
-                else:
-                    # uniform label
-                    # # debug
-                    # self.debug_images(aux_images, title='aux')
-                    # self.debug_images(images, title='ori')
-                    aux_images, _ = aux_data
-                    aux_targets = 1 / self.classes * torch.ones(self.args.aux_num, self.classes)
-                    targets = F.one_hot(targets).long()
+                        if self.args.additional_loss2 == 'ssim':
+                            hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1,
+                                                                               feature_aug2, self.args.aux_hlambda)
+                        else:
+                            B, C = feature_clean.size()
+                            feature_clean, feature_aug1, feature_aug2 = feature_clean.view(aux_num, -1), \
+                                                                        feature_aug1.view(aux_num, -1), \
+                                                                        feature_aug2.view(aux_num, -1)
+                            # if multi hook layer -> have to be fixed.
+                            hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1,
+                                                                               feature_aug2, self.args.aux_hlambda)
 
-                    images = torch.cat((images, aux_images), dim=0).to(self.device)
-                    targets = torch.cat((targets, aux_targets), dim=0).to(self.device)
+                ce_loss = ce_loss_ori # + self.args.aux_lambda * ce_loss_aux
+                hook_loss = hook_loss_aux
+                loss = ce_loss + hook_loss
 
-                    logits = self.net(images)
+                # logging loss and distance
+                total_ce_loss += float(loss.data)
+                total_additional_loss = 0.
+                ce_loss_ori_ += ce_loss_ori.detach()
+                for key, value in hfeature_aux.items():
+                    hook_distance_aux += value.detach()
+                # ce_loss_aux_ += ce_loss_aux
 
-                    ce_loss_ori = F.cross_entropy(logits[:-self.args.aux_num], targets[:-self.args.aux_num])
-                    ce_loss_aux = F.cross_entropy(logits[-self.args.aux_num:], targets[-self.args.aux_num:])
+                # for logging error
+                self.wandb_input = self.net.get_wandb_input()
 
-                    loss = ce_loss_ori + self.args.aux_lambda * ce_loss_aux
+                logits_ori = logits[:num].detach()
+                logits_aux = logits[num:num+aux_num].detach()
+                targets_ori = targets[:num].detach()
+                targets_aux = targets[num:num+aux_num].detach()
 
-                    # logging loss and distance
-                    total_ce_loss += float(loss.data)
-                    total_additional_loss = 0.
-                    ce_loss_ori_ += ce_loss_ori
-                    ce_loss_aux_ += ce_loss_aux
+                pred = logits_ori.data.max(1)[1]
+                labels = targets_ori.max(1)[1]
 
-                    # for logging error
-                    self.wandb_input = self.net.get_wandb_input()
+                correct += pred.eq(labels.data).sum().item()
+                uniform_error += (torch.abs(F.softmax(logits_aux, dim=-1) - targets_aux)).sum()
+                acc1, acc5 = accuracy(logits_ori, labels, topk=(1, 5))
 
-                    logits_ori = logits[:-self.args.aux_num].detach()
-                    logits_aux = logits[-self.args.aux_num:].detach()
-                    targets_ori = targets[:-self.args.aux_num].detach()
-                    targets_aux = targets[-self.args.aux_num:].detach()
-
-                    pred = logits_ori.data.max(1)[1]
-                    labels = targets_ori.max(1)[1]
-
-                    correct += pred.eq(labels.data).sum().item()
-                    uniform_error += (torch.abs(F.softmax(logits_aux, dim=-1) - targets_aux)).sum()
-                    acc1, acc5 = accuracy(logits_ori, labels, topk=(1, 5))
-
-                    self.wandb_input = self.net.get_wandb_input()
+                self.wandb_input = self.net.get_wandb_input()
 
             else:
                 # get aux_images and aux targets
@@ -1743,11 +1755,12 @@ class Trainer():
                 assert logits_clean.size(0) == targets.size(0)
                 ce_loss_ori = F.cross_entropy(logits_clean[:-aux_num], targets[:-aux_num])
 
-                if self.args.uniform_label == 'none':
-                    ce_loss_aux = 0
-                else:
-                    ce_loss_aux = F.cross_entropy(logits_clean[-aux_num:], targets[-aux_num:])
-                    ce_loss_aux_ += ce_loss_aux.detach()
+                # if self.args.uniform_label == 'none':
+                #     ce_loss_aux = 0
+                # else:
+                #     ce_loss_aux = F.cross_entropy(logits_clean[-aux_num:], targets[-aux_num:])
+                #     ce_loss_aux_ += ce_loss_aux.detach()
+                ce_loss_aux = 0
 
                 additional_loss_ori, feature_ori = get_additional_loss(self.args,
                                                                        logits_clean[:-aux_num],
@@ -1758,14 +1771,14 @@ class Trainer():
                                                                        self.args.temper,
                                                                        self.args.reduction)
 
-                additional_loss_aux, feature_aux = get_additional_loss(self.args,
-                                                                       logits_clean[-aux_num:],
-                                                                       logits_aug1[-aux_num:],
-                                                                       logits_aug2[-aux_num:],
-                                                                       self.args.lambda_weight,
-                                                                       targets,
-                                                                       self.args.temper,
-                                                                       self.args.reduction)
+                # additional_loss_aux, feature_aux = get_additional_loss(self.args,
+                #                                                        logits_clean[-aux_num:],
+                #                                                        logits_aug1[-aux_num:],
+                #                                                        logits_aug2[-aux_num:],
+                #                                                        self.args.lambda_weight,
+                #                                                        targets,
+                #                                                        self.args.temper,
+                #                                                        self.args.reduction)
 
                 hook_loss = 0
                 # hook loss
@@ -1793,7 +1806,7 @@ class Trainer():
                 ce_loss_ori_ += ce_loss_ori.detach()
                 # ce_loss_aux_ += ce_loss_aux.detach()
                 jsd_distance_ori += feature_ori['jsd_distance'].detach()
-                jsd_distance_aux += feature_aux['jsd_distance'].detach()
+                # jsd_distance_aux += feature_aux['jsd_distance'].detach()
                 # hook_distance_aux += hfeature_aux['distance'].detach()
                 for key, value in hfeature_aux.items():
                     hook_distance_aux += value.detach()
@@ -1849,11 +1862,11 @@ class Trainer():
 
         # loss
         wandb_features['train/ce_loss'] = ce_loss_ori_ / denom
-        wandb_features['train/ce_loss_aux'] = ce_loss_aux_ / denom
+        # wandb_features['train/ce_loss_aux'] = ce_loss_aux_ / denom
 
         # jsd distance
         wandb_features['train/jsd_distance'] = jsd_distance_ori / denom
-        wandb_features['train/jsd_distance_aux'] = jsd_distance_aux / denom
+        # wandb_features['train/jsd_distance_aux'] = jsd_distance_aux / denom
 
         # hook distance_aux
         wandb_features['train/hook_distance_aux'] = hook_distance_aux / denom
