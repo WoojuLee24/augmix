@@ -1742,8 +1742,8 @@ class Trainer():
                     aux_images[1] = aux_images[1] + s1 * unoise1
                     aux_images[2] = aux_images[2] + s2 * unoise2
 
-                    self.debug_images(aux_images[0], title='aux')
-                    self.debug_images(images[0], title='ori')
+                    # self.debug_images(aux_images[0], title='aux')
+                    # self.debug_images(images[0], title='ori')
                     # self.debug_images(aux_images[1], title='aug1')
                     # self.debug_images(aux_images[2], title='aug2')
                     # self.debug_images(unoise1, title='unoise')
