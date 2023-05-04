@@ -169,6 +169,12 @@ def build_dataset(args, corrupted=False):
             aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
                                         args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
                                         args.mixture_coefficient)
+        elif args.aux_dataset == 'cifar10':
+            aux_dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            aux_dataset = AugMixDataset(aux_dataset, preprocess, no_jsd,
+                                        args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+                                        args.mixture_coefficient)
+
         elif args.aux_dataset == 'unoise':
             path = os.path.join('/ws/data', args.aux_dataset, 'train')
             mixing_set = datasets.ImageFolder(path, transform=mixing_set_transform)

@@ -137,12 +137,16 @@ def get_args_from_parser():
     parser.add_argument('--aux-dataset', '-auxd',
                         type=str,
                         default='none',
-                        choices=['none', 'fractals', 'imagenet', 'mmix'],
+                        choices=['none', 'fractals', 'imagenet', 'mmix', 'cifar10'],
                         help='Choose auxiliary datasets')
     parser.add_argument('--aux-num', '-auxn',
                         type=int,
                         default=1,
                         help='number of images with uniform labels')
+    parser.add_argument('--aux-prob', '-auxp',
+                        type=float,
+                        default=0.125,
+                        help='prop of aux augmentation applied')
     parser.add_argument('--aux-type', '-auxt',
                         type=str,
                         default='none',
@@ -327,7 +331,7 @@ def main():
     train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset = build_dataset(args)
     train_loader, test_loader = build_dataloader(train_dataset, test_dataset, args)
     # if args.aux_type == 'fractals':
-    if args.aux_dataset in ['fractals', 'imagenet']:
+    if args.aux_dataset in ['fractals', 'imagenet', 'cifar10']:
         aux_loader = build_auxloader(aux_dataset, args)
     else:
         aux_loader = None
@@ -521,7 +525,7 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
             elif args.uniform_label in ['v0.1']:
                 train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
-            elif (args.aux_dataset in ['fractals', 'imagenet']) and (args.aux_hlambda!=0):
+            elif (args.aux_dataset in ['fractals', 'imagenet', 'cifar10']) and (args.aux_hlambda!=0):
                 train_loss_ema, train_features, train_cms = trainer.train_auxhd(train_loader, aux_loader)
             elif args.aux_dataset in ['fractals', 'imagenet']:
                 train_loss_ema, train_features, train_cms = trainer.train_auxd(train_loader, aux_loader)

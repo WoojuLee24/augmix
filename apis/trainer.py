@@ -703,6 +703,11 @@ class Trainer():
                     s1 = self.args.aux_severity * torch.rand((B, 1, 1, 1))
                     s2 = self.args.aux_severity * torch.rand((B, 1, 1, 1))
 
+                    p1 = np.random.choice(B, int(B*self.args.aux_prob), replace=False)
+                    p2 = np.random.choice(B, int(B*self.args.aux_prob), replace=False)
+                    s1[p1] = 0
+                    s2[p2] = 0
+
                     unoise1 = 2 * torch.rand(B, C, H, W) - 1
                     unoise2 = 2 * torch.rand(B, C, H, W) - 1
                     images[1] = images[1] + s1 * unoise1
@@ -1737,7 +1742,8 @@ class Trainer():
                     aux_images[1] = aux_images[1] + s1 * unoise1
                     aux_images[2] = aux_images[2] + s2 * unoise2
 
-                    # self.debug_images(aux_images[0], title='ori')
+                    self.debug_images(aux_images[0], title='aux')
+                    self.debug_images(images[0], title='ori')
                     # self.debug_images(aux_images[1], title='aug1')
                     # self.debug_images(aux_images[2], title='aug2')
                     # self.debug_images(unoise1, title='unoise')
