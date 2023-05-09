@@ -662,7 +662,7 @@ class Trainer():
         self.net.train()
         wandb_features = dict()
         total_ce_loss, total_additional_loss = 0., 0.
-        ce_loss_, jsd_distance = 0., 0.
+        ce_loss_, jsd_distance, hook_distance = 0., 0., 0.
         correct = 0.
 
         data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
@@ -724,13 +724,38 @@ class Trainer():
                                                                self.args.lambda_weight, targets, self.args.temper,
                                                                self.args.reduction)
 
-                loss = ce_loss + additional_loss
+                hook_loss = 0
+                # hook loss
+                for hkey, hfeature in self.net.module.hook_features.items():
+                    feature_clean, feature_aug1, feature_aug2 = torch.chunk(hfeature[0], 3)
+                    feature_clean, feature_aug1, feature_aug2 = feature_clean, feature_aug1, feature_aug2,
+                    if self.args.additional_loss2 == 'ssim':
+                        hook_loss, hfeature = get_additional_loss2(self.args,
+                                                                   feature_clean,
+                                                                   feature_aug1,
+                                                                   feature_aug2,
+                                                                   self.args.aux_hlambda)
+                    else:
+                        feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), \
+                                                                    feature_aug1.view(B, -1), \
+                                                                    feature_aug2.view(B, -1)
+                        B, C = feature_clean.size()
+                        # if multi hook layer -> have to be fixed.
+                        hook_loss, hfeature = get_additional_loss2(self.args,
+                                                                   feature_clean,
+                                                                   feature_aug1,
+                                                                   feature_aug2,
+                                                                   self.args.aux_hlambda)
+
+                loss = ce_loss + additional_loss + hook_loss
 
                 # logging loss and distance
                 total_ce_loss += float(ce_loss.data)
                 total_additional_loss += float(additional_loss.data)
                 ce_loss_ += float(ce_loss.data)
                 jsd_distance += feature['jsd_distance'].detach()
+                for key, value in hfeature.items():
+                    hook_distance += value.detach()
 
                 # logging error
                 self.wandb_input = self.net.get_wandb_input()
@@ -775,6 +800,8 @@ class Trainer():
         wandb_features['train/ce_loss'] = ce_loss_ / denom
         # jsd distance
         wandb_features['train/jsd_distance'] = jsd_distance / denom
+        # hook distance_aux
+        wandb_features['train/hook_distance_aux'] = hook_distance / denom
         # error
         wandb_features['train/error'] = 100 - 100. * correct / len(data_loader.dataset)
         # lr
