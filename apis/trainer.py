@@ -1716,7 +1716,7 @@ class Trainer():
                             hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1,
                                                                                feature_aug2, self.args.aux_hlambda)
                         else:
-                            B, C = feature_clean.size()
+                            # B, C = feature_clean.size()
                             feature_clean, feature_aug1, feature_aug2 = feature_clean.view(aux_num, -1), \
                                                                         feature_aug1.view(aux_num, -1), \
                                                                         feature_aug2.view(aux_num, -1)

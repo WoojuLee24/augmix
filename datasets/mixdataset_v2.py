@@ -3,7 +3,7 @@ import numpy as np
 import augmentations
 
 
-def aug_v2_0(image, preprocess, all_ops, mixture_width, mixture_depth, aug_severity, mixture_alpha, mixture_beta, mixture_fix=False):
+def augv2(image, preprocess, all_ops, mixture_width, mixture_depth, aug_severity, mixture_alpha, mixture_beta, mixture_fix=False):
     """Perform AugMix augmentations and ctrain_data, preprocess, args.no_jsdompute mixture.
     mixture coefficient -> mixture_alpha, mixture_beta
 
@@ -54,7 +54,7 @@ class BaseDataset(torch.utils.data.Dataset):
         return len(self.dataset)
 
 
-class AugMixDataset_v2_0(torch.utils.data.Dataset):
+class AugMixDatasetv2(torch.utils.data.Dataset):
     """Dataset wrapper to perform AugMix augmentation."""
 
     def __init__(self,
@@ -82,13 +82,15 @@ class AugMixDataset_v2_0(torch.utils.data.Dataset):
     def __getitem__(self, i):
         x, y = self.dataset[i]
         if self.no_jsd:
-            return aug_v2_0(x, self.preprocess, self.all_ops, self.mixture_width, self.mixture_depth, self.aug_severity, self.mixture_alpha, self.mixture_beta), y
+            img = augv2(x, self.preprocess, self.all_ops, self.mixture_width, self.mixture_depth, self.aug_severity,
+                  self.mixture_alpha, self.mixture_beta)
+            return img, y
         else:
             original = self.preprocess(x)
-            aug1, m1 = aug_v2_0(x, self.preprocess, self.all_ops,
+            aug1, m1 = augv2(x, self.preprocess, self.all_ops,
                                 self.mixture_width, self.mixture_depth, self.aug_severity,
                                 self.mixture_alpha, self.mixture_beta, self.mixture_fix)
-            aug2, m2 = aug_v2_0(x, self.preprocess, self.all_ops,
+            aug2, m2 = augv2(x, self.preprocess, self.all_ops,
                                 self.mixture_width, self.mixture_depth, self.aug_severity,
                                 self.mixture_alpha, self.mixture_beta, self.mixture_fix)
             im_tuple = (original, aug1, aug2)

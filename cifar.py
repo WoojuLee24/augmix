@@ -59,8 +59,13 @@ def get_args_from_parser():
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',
-                        choices=['none', 'augmix', 'pixmix', 'augmix_v2.0', 'apr_s', 'prime', 'ctrlaugmix'],
+                        choices=['none', 'augmix', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
                         help='Choose domain generalization augmentation methods')
+    parser.add_argument('--aux-aug', '-auxa',
+                        type=str,
+                        default='augmix',
+                        choices=['none', 'augmix', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
+                        help='Choose aux domain generalization augmentation methods')
 
     parser.add_argument('--shuffle', type=bool, default=True, help='shuffle or not')
 

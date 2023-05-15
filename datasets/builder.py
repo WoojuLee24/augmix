@@ -6,7 +6,7 @@ from torchvision import datasets
 import augmentations
 from .mixdataset import BaseDataset, AugMixDataset
 from .ctrl_mixdataset import CtrlAugMixDataset
-from .mixdataset_v2 import AugMixDataset_v2_0
+from .mixdataset_v2 import AugMixDatasetv2
 from .prime.prime import GeneralizedPRIMEModule, PRIMEAugModule, TransformLayer
 from .prime.diffeomorphism import Diffeo
 from .prime.rand_filter import RandomFilter
@@ -94,8 +94,8 @@ def build_dataset(args, corrupted=False):
             train_dataset = CtrlAugMixDataset(train_dataset, preprocess, no_jsd,
                                               args.set_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
                                               args.mixture_coefficient)
-        elif aug == 'augmix_v2.0':
-            train_dataset = AugMixDataset_v2_0(train_dataset, preprocess, no_jsd,
+        elif aug == 'augmixv2':
+            train_dataset = AugMixDatasetv2(train_dataset, preprocess, no_jsd,
                                           args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
                                           args.mixture_alpha, args.mixture_beta, args.mixture_fix)
         elif aug == 'prime':
@@ -159,28 +159,39 @@ def build_dataset(args, corrupted=False):
         no_jsd = False
         if args.aux_dataset == 'fractals':
             path = os.path.join('/ws/data', 'fractals_and_fvis')
-            mixing_set = datasets.ImageFolder(path, transform=mixing_set_transform)
-            aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
-                                        args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
-                                        args.mixture_coefficient)
+            aux_dataset = datasets.ImageFolder(path, transform=mixing_set_transform)
+            # aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
+            #                             args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+            #                             args.mixture_coefficient)
         elif args.aux_dataset == 'imagenet':
             path = os.path.join('/ws/data', args.aux_dataset, 'train')
-            mixing_set = datasets.ImageFolder(path, transform=mixing_set_transform)
-            aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
-                                        args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
-                                        args.mixture_coefficient)
+            aux_dataset = datasets.ImageFolder(path, transform=mixing_set_transform)
+            # aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
+            #                             args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+            #                             args.mixture_coefficient)
+
         elif args.aux_dataset == 'cifar10':
             aux_dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
-            aux_dataset = AugMixDataset(aux_dataset, preprocess, no_jsd,
-                                        args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
-                                        args.mixture_coefficient)
+            # aux_dataset = AugMixDataset(aux_dataset, preprocess, no_jsd,
+            #                             args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+            #                             args.mixture_coefficient)
 
         elif args.aux_dataset == 'unoise':
             path = os.path.join('/ws/data', args.aux_dataset, 'train')
-            mixing_set = datasets.ImageFolder(path, transform=mixing_set_transform)
-            aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
+            aux_dataset = datasets.ImageFolder(path, transform=mixing_set_transform)
+            # aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
+            #                             args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+            #                             args.mixture_coefficient)
+
+        if args.aux_aug == 'augmix':
+            aux_dataset = AugMixDataset(aux_dataset, preprocess, no_jsd,
                                         args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
                                         args.mixture_coefficient)
+        elif args.aux_aug == 'augmixv2':
+            aux_dataset = AugMixDatasetv2(aux_dataset, preprocess, no_jsd,
+                                          args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+                                          args.mixture_coefficient,
+                                          mixture_fix=args.mixture_fix)
 
         return train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset
 
