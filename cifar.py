@@ -59,12 +59,12 @@ def get_args_from_parser():
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',
-                        choices=['none', 'augmix', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
+                        choices=['none', 'augmix', 'da', 'augda', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
                         help='Choose domain generalization augmentation methods')
     parser.add_argument('--aux-aug', '-auxa',
                         type=str,
                         default='augmix',
-                        choices=['none', 'augmix', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
+                        choices=['none', 'da', 'augmix', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
                         help='Choose aux domain generalization augmentation methods')
 
     parser.add_argument('--shuffle', type=bool, default=True, help='shuffle or not')
@@ -530,6 +530,8 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
             elif args.uniform_label in ['v0.1']:
                 train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
+            elif args.aux_aug in ['da']:
+                train_loss_ema, train_features, train_cms = trainer.train_auxa(train_loader, aux_loader)
             elif (args.aux_dataset in ['fractals', 'imagenet', 'cifar10']) and (args.aux_hlambda!=0):
                 train_loss_ema, train_features, train_cms = trainer.train_auxhd(train_loader, aux_loader)
             elif args.aux_dataset in ['fractals', 'imagenet']:
@@ -538,8 +540,10 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_mmix(train_loader, aux_loader)
             elif args.cls_dg != -1:
                 train_loss_ema, train_features, train_cms = trainer.train_cls(train_loader)
+            elif args.aug == 'augda':
+                train_loss_ema, train_features, train_cms = trainer.train_augda(train_loader)
             else:
-                 train_loss_ema, train_features, train_cms = trainer.train(train_loader)
+                train_loss_ema, train_features, train_cms = trainer.train(train_loader)
 
             # wandb_logger.after_train_epoch(dict(train_features=train_features))
 

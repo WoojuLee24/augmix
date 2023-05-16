@@ -2,6 +2,7 @@ import os
 import torch
 from torchvision import transforms
 from torchvision import datasets
+import numpy as np
 
 import augmentations
 from .mixdataset import BaseDataset, AugMixDataset
@@ -12,6 +13,7 @@ from .prime.diffeomorphism import Diffeo
 from .prime.rand_filter import RandomFilter
 from. prime.color_jitter import RandomSmoothColor
 from .pixmix import RandomImages300K, PixMixDataset
+from .deepaugment import DADataset
 from .APR import AprS
 import utils
 
@@ -98,6 +100,30 @@ def build_dataset(args, corrupted=False):
             train_dataset = AugMixDatasetv2(train_dataset, preprocess, no_jsd,
                                           args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
                                           args.mixture_alpha, args.mixture_beta, args.mixture_fix)
+
+        elif aug == 'da':
+            dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset2 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset3 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset2.data = np.load(root_dir + "/da/EDSR.npy")
+            dataset3.data = np.load(root_dir + "/da/CAE.npy")
+
+            train_dataset = DADataset(dataset, dataset2, dataset3, preprocess, False, no_jsd)
+
+        elif aug == 'augda':
+            dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+
+            dataset = AugMixDataset(dataset, preprocess, no_jsd,
+                                    args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
+                                    args.mixture_coefficient)
+
+            dataset2 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset3 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset2.data = np.load(root_dir + "/da/EDSR.npy")
+            dataset3.data = np.load(root_dir + "/da/CAE.npy")
+
+            train_dataset = DADataset(dataset, dataset2, dataset3, preprocess, True, no_jsd)
+
         elif aug == 'prime':
             preprocess = transforms.Compose([transforms.ToTensor()])
             train_dataset = BaseDataset(train_dataset, preprocess)
@@ -192,6 +218,15 @@ def build_dataset(args, corrupted=False):
                                           args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
                                           args.mixture_coefficient,
                                           mixture_fix=args.mixture_fix)
+
+        elif args.aux_aug == 'da':
+            aux_dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            aux_dataset2 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            aux_dataset3 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            aux_dataset2.data = np.load(root_dir + "/da/EDSR.npy")
+            aux_dataset3.data = np.load(root_dir + "/da/CAE.npy")
+
+            aux_dataset = DADataset(aux_dataset, aux_dataset2, aux_dataset3, preprocess, False, no_jsd)
 
         return train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset
 
