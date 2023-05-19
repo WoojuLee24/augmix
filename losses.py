@@ -192,19 +192,19 @@ def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
     if name == 'none':
         loss, features = 0, dict()
     elif name == 'cossim':
-        loss, features = cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction)
+        loss, features = cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
     elif name == 'csl2':
-        loss, features = csl2(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction)
+        loss, features = csl2(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
     elif name == 'ssim':
-        loss, features = ssim(args, logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper, reduction='mean')
+        loss, features = ssim(args, logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction='mean')
     elif name == 'njsd':
-        loss, features = njsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        loss, features = njsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
     elif name == 'msev1.1':
         loss, features = msev1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'msev1.0':
         loss, features = msev1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsd':
-        loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
     elif name == 'jsdv4.ntxent':
         margin = args.margin
         loss, features = jsdv4_ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)

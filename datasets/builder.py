@@ -14,6 +14,7 @@ from .prime.rand_filter import RandomFilter
 from. prime.color_jitter import RandomSmoothColor
 from .pixmix import RandomImages300K, PixMixDataset
 from .deepaugment import DADataset
+from .deepaugment_all import DAallDataset
 from .APR import AprS
 import utils
 
@@ -227,6 +228,23 @@ def build_dataset(args, corrupted=False):
             aux_dataset3.data = np.load(root_dir + "/da/CAE.npy")
 
             aux_dataset = DADataset(aux_dataset, aux_dataset2, aux_dataset3, preprocess, False, no_jsd)
+
+        elif args.aux_aug == 'daall':
+            # deepaugment all
+            aux_dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            # aux_dataset2 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            # aux_dataset3 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            # aux_dataset2.data = np.load(root_dir + "/daall/EDSR.npy")
+            # aux_dataset3.data = np.load(root_dir + "/daall/CAE.npy")
+
+            aux_datasets = [aux_dataset]
+            aux_augset = os.listdir(root_dir + "/daall/")
+            for aug in aux_augset:
+                d = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+                d.data = np.load(root_dir + "/daall/" + aug)
+                aux_datasets.append(d)
+
+            aux_dataset = DAallDataset(aux_datasets, preprocess, False, no_jsd)
 
         return train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset
 

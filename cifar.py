@@ -64,7 +64,7 @@ def get_args_from_parser():
     parser.add_argument('--aux-aug', '-auxa',
                         type=str,
                         default='augmix',
-                        choices=['none', 'da', 'augmix', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
+                        choices=['none', 'da', 'daall', 'augmix', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
                         help='Choose aux domain generalization augmentation methods')
 
     parser.add_argument('--shuffle', type=bool, default=True, help='shuffle or not')
@@ -530,7 +530,7 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
             elif args.uniform_label in ['v0.1']:
                 train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
-            elif args.aux_aug in ['da']:
+            elif args.aux_aug in ['daall']:
                 train_loss_ema, train_features, train_cms = trainer.train_auxa(train_loader, aux_loader)
             elif (args.aux_dataset in ['fractals', 'imagenet', 'cifar10']) and (args.aux_hlambda!=0):
                 train_loss_ema, train_features, train_cms = trainer.train_auxhd(train_loader, aux_loader)

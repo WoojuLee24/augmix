@@ -20,8 +20,10 @@ class Tester():
         self.wandb_logger = wandb_logger
         self.device = device
 
-        if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
+        if args.dataset == 'cifar10':
             self.classes = 10
+        elif args.dataset == 'cifar100':
+            self.classes = 100
         elif args.dataset == 'imagenet':
             self.classes = 1000
 

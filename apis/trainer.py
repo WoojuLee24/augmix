@@ -1916,7 +1916,9 @@ class Trainer():
                 # get aux_images and aux targets
                 aux_images, _ = aux_data
                 aux_num = aux_images[1].size(0)
-                aux_targets = 1 / self.classes * torch.ones(aux_num, self.classes)
+                aux_total_num = aux_num * len(aux_images)
+                num = images[0].size(0)
+                total_num = num * len(images)
                 if self.args.aux_type == 'unoise':
                     # s1, s2 = self.args.aux_severity * (2 * torch.rand(2) - 1)
                     B, C, H, W = aux_images[1].size()
@@ -1930,25 +1932,27 @@ class Trainer():
 
                 # self.debug_images(aux_images[0], title='aux')
                 # self.debug_images(aux_images[1], title='auxaug1')
-                # self.debug_images(aux_images[2], title='auxaug2')
+                # self.debug_images(aux_images[25], title='auxaug25')
+
                 # self.debug_images(images[0], title='ori')
                 # self.debug_images(images[1], title='oriaugmix1')
                 # self.debug_images(images[2], title='oriaugmix2')
                 # self.debug_images(images[3], title='oriaug1')
                 # self.debug_images(images[4], title='oriaug2')
 
-                # convert targets to one-hot format
-                targets = F.one_hot(targets).long()
-
-                images = [images[0], aux_images[0], images[1], aux_images[1], images[2], aux_images[2]]
-                images_all = torch.cat(images, 0).to(self.device)
-                targets = torch.cat((targets, aux_targets), dim=0).to(self.device)
+                # images = [images[0], aux_images[0], images[1], aux_images[1], images[2], aux_images[2]]
+                ori_images = torch.cat(images, 0).to(self.device)
+                aux_images = torch.cat(aux_images, 0).to(self.device)
+                images_all = torch.cat([ori_images, aux_images], 0).to(self.device)
+                targets = targets.to(self.device)
+                # targets = torch.cat((targets, aux_targets), dim=0).to(self.device)
 
                 logits_all = self.net(images_all)
+                logits_all, logits_aux = logits_all[:total_num], logits_all[total_num:]
                 logits_clean, logits_aug1, logits_aug2 = torch.chunk(logits_all, 3)
 
                 assert logits_clean.size(0) == targets.size(0)
-                ce_loss_ori = F.cross_entropy(logits_clean[:-aux_num], targets[:-aux_num])
+                ce_loss_ori = F.cross_entropy(logits_clean, targets)
 
                 # if self.args.uniform_label == 'none':
                 #     ce_loss_aux = 0
@@ -1958,9 +1962,9 @@ class Trainer():
                 ce_loss_aux = 0
 
                 additional_loss_ori, feature_ori = get_additional_loss(self.args,
-                                                                       logits_clean[:-aux_num],
-                                                                       logits_aug1[:-aux_num],
-                                                                       logits_aug2[:-aux_num],
+                                                                       logits_clean,
+                                                                       logits_aug1,
+                                                                       logits_aug2,
                                                                        self.args.lambda_weight,
                                                                        targets,
                                                                        self.args.temper,
@@ -1978,16 +1982,19 @@ class Trainer():
                 hook_loss = 0
                 # hook loss
                 for hkey, hfeature in self.net.module.hook_features.items():
-                    feature_clean, feature_aug1, feature_aug2 = torch.chunk(hfeature[0], 3)
-                    feature_clean, feature_aug1, feature_aug2 = feature_clean[-aux_num:], feature_aug1[-aux_num:], feature_aug2[-aux_num:],
-                    if self.args.additional_loss2 == 'ssim':
-                        hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1,
-                                                                           feature_aug2, self.args.aux_hlambda)
-                    else:
-                        feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), feature_aug1.view(B, -1), feature_aug2.view(B, -1)
-                        B, C = feature_clean.size()
-                        # if multi hook layer -> have to be fixed.
-                        hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1, feature_aug2, self.args.aux_hlambda)
+                    hfeature = hfeature[total_num:]
+                    hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1,
+                                                                       feature_aug2, self.args.aux_hlambda)
+                    # feature_clean, feature_aug1, feature_aug2 = torch.chunk(hfeature[0], 3)
+                    # feature_clean, feature_aug1, feature_aug2 = feature_clean[total_num:], feature_aug1[-aux_num:], feature_aug2[-aux_num:],
+                    # if self.args.additional_loss2 == 'ssim':
+                    #     hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1,
+                    #                                                        feature_aug2, self.args.aux_hlambda)
+                    # else:
+                    #     feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), feature_aug1.view(B, -1), feature_aug2.view(B, -1)
+                    #     B, C = feature_clean.size()
+                    #     # if multi hook layer -> have to be fixed.
+                    #     hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1, feature_aug2, self.args.aux_hlambda)
 
                 ce_loss = ce_loss_ori + self.args.aux_lambda * ce_loss_aux
                 additional_loss = additional_loss_ori # + self.args.aux_lambda * additional_loss_aux
@@ -2257,7 +2264,9 @@ class Trainer():
                         hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1,
                                                                            feature_aug2, self.args.aux_hlambda)
                     else:
-                        feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), feature_aug1.view(B, -1), feature_aug2.view(B, -1)
+                        feature_clean, feature_aug1, feature_aug2 = feature_clean.view(aux_num, -1), \
+                                                                    feature_aug1.view(aux_num, -1), \
+                                                                    feature_aug2.view(aux_num, -1)
                         B, C = feature_clean.size()
                         # if multi hook layer -> have to be fixed.
                         hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1, feature_aug2, self.args.aux_hlambda)

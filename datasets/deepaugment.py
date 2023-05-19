@@ -47,9 +47,9 @@ class DADataset(torch.utils.data.Dataset):
             original, y = self.dataset1[i]
             if not self.with_augmix:
                 original = self.preprocess(original)
-                im_tuple = (original, cae, edsr)
+                im_tuple = (original, cae, edsr)    # original is CIFAR10 original
             else:
-                im_tuple = original + (cae, edsr)
+                im_tuple = original + (cae, edsr)   # original is composed of 3-tuple augmix
 
 
             return im_tuple, y
