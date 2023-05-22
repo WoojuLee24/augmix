@@ -123,6 +123,7 @@ def get_args_from_parser():
                                  'cossim',
                                  'csl2',
                                  'ssim',
+                                 'ssim_multi',
                                  'njsd',
                                  ],
                         help='Type of additiona loss2')
@@ -134,10 +135,15 @@ def get_args_from_parser():
 
 
     ## uniform-label ##
-    parser.add_argument('--uniform-label', '-ul',
+    # parser.add_argument('--uniform-label', '-ul',
+    #                     type=str,
+    #                     default='none',
+    #                     choices=['none', 'v0.1', 'v0.2', 'v0.3'],
+    #                     help='Choose domain generalization augmentation methods')
+    parser.add_argument('--aux-label',
                         type=str,
                         default='none',
-                        choices=['none', 'v0.1', 'v0.2', 'v0.3'],
+                        choices=['none', 'uniform', 'target', 'v0.1', 'v0.2', 'v0.3'],
                         help='Choose domain generalization augmentation methods')
     parser.add_argument('--aux-dataset', '-auxd',
                         type=str,
@@ -165,6 +171,10 @@ def get_args_from_parser():
                         type=float,
                         default=1,
                         help='lambda of uniform label loss')
+    parser.add_argument('--aux-lambda2', '-auxl2',
+                        type=float,
+                        default=1,
+                        help='lambda of additional loss')
     parser.add_argument('--aux-hlambda', '-auxhl',
                         type=float,
                         default=1,
@@ -528,11 +538,22 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_save_grad(train_loader)
             elif args.aug == "prime":
                 train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
-            elif args.uniform_label in ['v0.1']:
-                train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
+            # elif args.uniform_label in ['v0.1']:
+            #     train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
             elif args.aux_aug in ['daall']:
                 train_loss_ema, train_features, train_cms = trainer.train_auxa(train_loader, aux_loader)
+            elif args.aux_aug in ['da']:
+                # 0522~
+                # aug: da enabled
+                # cifar10 enabled
+                # aux_label == 'none', 'target', 'uniform'(TODO)
+                # lw2!=0 ->  logit aux JSD training
+                # aux_hlambda !=0, hook -> feature aux training
+                train_loss_ema, train_features, train_cms = trainer.train_auxhd2(train_loader, aux_loader) # 0522~, for da and aux label version
             elif (args.aux_dataset in ['fractals', 'imagenet', 'cifar10']) and (args.aux_hlambda!=0):
+                # ~0521
+                # aug: unoise (ul and noul), da (no ul) enabled
+                # fractals, imagenet, cifar10 enabled
                 train_loss_ema, train_features, train_cms = trainer.train_auxhd(train_loader, aux_loader)
             elif args.aux_dataset in ['fractals', 'imagenet']:
                 train_loss_ema, train_features, train_cms = trainer.train_auxd(train_loader, aux_loader)

@@ -205,23 +205,27 @@ def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
         loss, features = msev1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight)
     elif name == 'jsd':
         loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
-    elif name == 'jsdv4.ntxent':
-        margin = args.margin
-        loss, features = jsdv4_ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
-    elif name == 'jsdv4.ntxentv0.01':
-        margin = args.margin
-        loss, features = jsdv4_ntxentv0_01(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
-    elif name == 'jsdv4.ntxentv0.02':
-        margin = args.margin
-        loss, features = jsdv4_ntxentv0_02(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
-    elif name == 'jsdv4.ntxent.detach':
-        margin = args.margin
-        loss, features = jsdv4_ntxent_detach(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, targets, margin)
-    elif name == 'opl':
-        loss, features = opl(logits_clean, logits_aug1, logits_aug2, args, lambda_weight, temper, labels=targets)
 
     return loss, features
 
+
+def get_additional_loss_multi(args, logits, auxn, lambda_weight=12, temper=1, reduction='batchmean', **kwargs):
+
+    name = args.additional_loss2
+    if name == 'none':
+        loss, features = 0, dict()
+    # elif name == 'cossim':
+    #     loss, features = cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
+    # elif name == 'csl2':
+    #     loss, features = csl2(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
+    elif name == 'ssim_multi':
+        loss, features = ssim_multi(args, logits, auxn, lambda_weight, args.temper, reduction='mean')
+    # elif name == 'njsd':
+    #     loss, features = njsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
+    # elif name == 'jsd':
+    #     loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
+
+    return loss, features
 
 def analysisv1_0(logits_clean, logits_aug1, logits_aug2=None, lambda_weight=12):
 
@@ -3317,6 +3321,36 @@ def ssim(args, img_clean, img_aug1, img_aug2, lambda_weight, targets, temper=1, 
     loss3 = _ssim(img_aug2, img_clean, window, window_size, channel, reduction)
 
     loss = 1 - (loss1 + loss2 + loss3) / 3
+    features = {'distance': loss.detach()}
+    loss = loss * lambda_weight
+
+    return loss, features
+
+def ssim_multi(args, imgs, auxn, lambda_weight=12, temper=1, reduction='mean'):
+
+    window_size = args.window
+    auxtotal = imgs.size(0)
+    auxb = auxtotal // auxn
+
+    (_, channel, height, width) = imgs.size()
+    imgs = imgs.reshape(auxn, auxb, channel, height, width)
+    # (_, channel, _, _) = img_clean.size()
+    window = create_window(window_size, channel)
+    if imgs.is_cuda:
+        window = window.cuda(imgs.get_device())
+    window = window.type_as(imgs)
+
+    ssims = 0
+
+    for i in range(1, auxb):
+        a = imgs[:, 0]
+        b = imgs[:, i]
+        ssims += _ssim(imgs[:, 0], imgs[:, i], window, window_size, channel, reduction)
+
+    ssims = ssims / auxb
+
+    loss = 1 - ssims
+
     features = {'distance': loss.detach()}
     loss = loss * lambda_weight
 

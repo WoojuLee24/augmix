@@ -239,11 +239,12 @@ def build_dataset(args, corrupted=False):
 
             aux_datasets = [aux_dataset]
             aux_augset = os.listdir(root_dir + "/daall/")
+            # debug
+            aux_augset = aux_augset[:2]
             for aug in aux_augset:
                 d = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
                 d.data = np.load(root_dir + "/daall/" + aug)
                 aux_datasets.append(d)
-
             aux_dataset = DAallDataset(aux_datasets, preprocess, False, no_jsd)
 
         return train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset
