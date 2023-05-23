@@ -569,7 +569,8 @@ def main():
             # wandb_logger.after_train_epoch(dict(train_features=train_features))
 
             test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
-            # wandb_logger.after_test_epoch(dict(test_features=test_features, # wandb here
+            # wandb_logger.after_test_epoch(d
+            # cict(test_features=test_features, # wandb here
             #                                    test_cm=test_cm))
 
             wandb_logger.log_evaluate(dict(train_features=train_features,
