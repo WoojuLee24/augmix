@@ -2262,7 +2262,7 @@ class Trainer():
                 aux_num = aux_images[1].size(0)
                 num = images.size(0)
                 aux_targets = 1 / self.classes * torch.ones(self.args.aux_num, self.classes)
-                if self.args.aux_type == 'unoise':
+                if self.args.aux_type == 'unoise': # will be deprecated
                     # s1, s2 = self.args.aux_severity * (2 * torch.rand(2) - 1)
                     B, C, H, W = aux_images[1].size()
                     s1 = self.args.aux_severity * torch.rand((B, 1, 1, 1))

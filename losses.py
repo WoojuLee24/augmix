@@ -195,6 +195,8 @@ def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
         loss, features = cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
     elif name == 'csl2':
         loss, features = csl2(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
+    elif name == 'cslp':
+        loss, features = cslp(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
     elif name == 'ssim':
         loss, features = ssim(args, logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction='mean')
     elif name == 'njsd':
@@ -2523,6 +2525,22 @@ def csl2(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=
     sim1 = F.cosine_similarity(logits_clean, logits_aug1).pow(2)
     sim2 = F.cosine_similarity(logits_aug1, logits_aug2).pow(2)
     sim3 = F.cosine_similarity(logits_aug2, logits_clean).pow(2)
+    logits = 1 - (sim1 + sim2 + sim3) / 3
+    loss = logits.mean() / temper * lambda_weight
+    features = {'distance': logits.mean().detach()}
+
+    return loss, features
+
+
+def cslp(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=2, reduction='mean'):
+
+    logits_clean, logits_aug1, logits_aug2 = F.normalize(logits_clean, dim=1), \
+                                             F.normalize(logits_aug1, dim=1), \
+                                             F.normalize(logits_aug2, dim=1),
+
+    sim1 = F.cosine_similarity(logits_clean, logits_aug1).pow(temper)
+    sim2 = F.cosine_similarity(logits_aug1, logits_aug2).pow(temper)
+    sim3 = F.cosine_similarity(logits_aug2, logits_clean).pow(temper)
     logits = 1 - (sim1 + sim2 + sim3) / 3
     loss = logits.mean() / temper * lambda_weight
     features = {'distance': logits.mean().detach()}

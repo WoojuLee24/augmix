@@ -63,7 +63,7 @@ def get_args_from_parser():
                         help='Choose domain generalization augmentation methods')
     parser.add_argument('--aux-aug', '-auxa',
                         type=str,
-                        default='augmix',
+                        default='none',
                         choices=['none', 'da', 'daall', 'augmix', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
                         help='Choose aux domain generalization augmentation methods')
 
@@ -122,6 +122,7 @@ def get_args_from_parser():
                                  'opl',
                                  'cossim',
                                  'csl2',
+                                 'cslp',
                                  'ssim',
                                  'ssim_multi',
                                  'njsd',
@@ -134,17 +135,17 @@ def get_args_from_parser():
     parser.add_argument('--skew', default=0.8, type=float, help='skew parameter for logit')
 
 
-    ## uniform-label ##
-    # parser.add_argument('--uniform-label', '-ul',
-    #                     type=str,
-    #                     default='none',
-    #                     choices=['none', 'v0.1', 'v0.2', 'v0.3'],
-    #                     help='Choose domain generalization augmentation methods')
+    # uniform-label ##
+    parser.add_argument('--uniform-label', '-ul',
+                        type=str,
+                        default='none',
+                        choices=['none', 'v0.1', 'v0.2', 'v0.3'],
+                        help='Choose domain generalization augmentation methods')
     parser.add_argument('--aux-label',
                         type=str,
                         default='none',
                         choices=['none', 'uniform', 'target', 'v0.1', 'v0.2', 'v0.3'],
-                        help='Choose domain generalization augmentation methods')
+                        help='aux dataset label')
     parser.add_argument('--aux-dataset', '-auxd',
                         type=str,
                         default='none',
@@ -158,15 +159,15 @@ def get_args_from_parser():
                         type=float,
                         default=0.125,
                         help='prop of aux augmentation applied')
-    parser.add_argument('--aux-type', '-auxt',
+    parser.add_argument('--aux-type', '-auxt',  # will be deprecated
                         type=str,
                         default='none',
                         choices=['none', 'unoise', 'gnoise', 'mix', 'mix_unoise', 'mixup_unoise', 'fractals'],
                         help='number of images with uniform labels')
-    parser.add_argument('--aux-severity', '-auxs',
+    parser.add_argument('--aux-severity', '-auxs',  # will be deprecated
                         type=float,
                         default=1,
-                        help='number of images with uniform labels')
+                        help='severity of uniform noise,..')
     parser.add_argument('--aux-lambda', '-auxl',
                         type=float,
                         default=1,
