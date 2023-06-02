@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-
+import numpy as np
 
 
 def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
@@ -12,6 +12,9 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
         loss = 0
     elif name == 'jsd':
         loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper)
+        return loss, features
+    elif name == 'pjsd':
+        loss, features = pjsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper, args.prob)
         return loss, features
     elif name == 'jsdvl_v0.1':
         loss, features = jsdvl_v0_1(logits_clean, logits_aug1, logits_aug2, targets, lambda_weight, temper)
@@ -282,6 +285,32 @@ def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
                 }
 
     return loss, features
+
+
+def pjsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0, prob=0.1):
+    p_clean, p_aug1, p_aug2 = F.softmax(logits_clean / temper, dim=1),\
+                              F.softmax(logits_aug1 / temper, dim=1), \
+                            F.softmax(logits_aug2 / temper, dim=1)
+    B = p_clean.size(0)
+    inds = np.random.choice(B, int(B*prob), replace=False)
+    p_clean, p_aug1, p_aug2 = p_clean[inds], p_aug1[inds], p_aug2[inds]
+
+    # Clamp mixture distribution to avoid exploding KL divergence
+    p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+    jsd_distance = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                    F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+    loss = lambda_weight * jsd_distance
+
+    features = {'jsd_distance': jsd_distance.detach(),
+                # 'p_clean': p_clean,
+                # 'p_aug1': p_aug1,
+                # 'p_aug2': p_aug2,
+                }
+
+    return loss, features
+
 
 
 def njsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):

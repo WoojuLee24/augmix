@@ -87,7 +87,7 @@ def get_args_from_parser():
     parser.add_argument('--additional-loss', '-al',
                         default='jsd',
                         type=str,
-                        choices=['none', 'jsd', 'jsd.manual', 'jsd.manual.ce','jsd_temper',
+                        choices=['none', 'jsd', 'jsd.manual', 'jsd.manual.ce','jsd_temper', 'pjsd',
                                  'jsdvl_v0.1', 'jsdvl_v0.1.1', 'jsdvl_v0.1.2',
                                  'jsd.skew',
                                  'analysisv1.0',
@@ -114,6 +114,7 @@ def get_args_from_parser():
     parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
     parser.add_argument('--lambda-alpha', '-la', default=0.0, type=float, help='additional loss weight alpha')
     parser.add_argument('--lambda-beta', '-lb', default=1.0, type=float, help='additional loss weight beta')
+    parser.add_argument('--prob', default=0.1, type=float, help='prob for pjsd')
 
     parser.add_argument('--additional-loss2', '-al2',
                         default='none',
