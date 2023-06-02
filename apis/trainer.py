@@ -8,6 +8,8 @@ import numpy as np
 from torchvision import transforms
 from losses import get_additional_loss, get_additional_loss2, get_additional_loss_multi
 from datasets.APR import mix_data
+import matplotlib.pyplot as plt
+
 
 def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for the specified values of k."""
@@ -33,6 +35,15 @@ def to_status(m, status):
 to_clean_status = partial(to_status, status='clean')
 to_adv_status = partial(to_status, status='adv')
 to_mix_status = partial(to_status, status='mix')
+
+
+def imsave(image, name):
+    root = "/ws/data/log/cifar10/debug"
+    image = (image - image.min()) / (image.max() - image.min())
+    image = image.cpu().detach().numpy()
+    image = (image * 255).astype(np.uint8)
+    image = np.transpose(image, (1, 2, 0))
+    plt.imsave(root + f'/{name}.png', np.asarray(image))
 
 
 class Trainer():
@@ -99,6 +110,12 @@ class Trainer():
                 acc1, acc5 = accuracy(logits, targets, topk=(1, 5))
 
             else:
+                # # debug
+                # for k in range(20):
+                #     imsave(images[0][k], f'{k}_1')
+                #     imsave(images[1][k], f'{k}_2')
+                #     imsave(images[2][k], f'{k}_3')
+
                 images_all = torch.cat(images, 0).to(self.device)
                 targets = targets.to(self.device)
                 logits_all = self.net(images_all)
@@ -111,6 +128,7 @@ class Trainer():
                                                                self.args.reduction)
 
                 hook_loss = 0
+                hfeature = {}
                 # hook loss
                 for hkey, hfeature in self.net.module.hook_features.items():
                     feature_clean, feature_aug1, feature_aug2 = torch.chunk(hfeature[0], 3)

@@ -59,7 +59,8 @@ def get_args_from_parser():
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',
-                        choices=['none', 'augmix', 'da', 'augda', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
+                        choices=['none', 'augmix', 'da', 'augda', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix',
+                                 'augdaset', 'augdawidth'],
                         help='Choose domain generalization augmentation methods')
     parser.add_argument('--aux-aug', '-auxa',
                         type=str,
@@ -79,6 +80,8 @@ def get_args_from_parser():
     parser.add_argument('--mixture-alpha', '-ma', default=1.0, type=float, help='mixture coefficient alpha')
     parser.add_argument('--mixture-beta', '-mb', default=1.0, type=float, help='mixture coefficient beta')
     parser.add_argument('--mixture-fix', '-mf', action='store_true', help='mixture coefficient fix: use mixture-alpha as coefficient')
+    parser.add_argument('--da-prob', default=1/3, type=float,
+                        help='deepaugment probability for augdaset mode')
 
     parser.add_argument('--no-jsd', '-nj', action='store_true', help='Turn off JSD consistency loss.')
     parser.add_argument('--additional-loss', '-al',

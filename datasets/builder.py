@@ -15,6 +15,8 @@ from. prime.color_jitter import RandomSmoothColor
 from .pixmix import RandomImages300K, PixMixDataset
 from .deepaugment import DADataset
 from .deepaugment_all import DAallDataset
+from .augdaset import AugDASetDataset
+from .augdawidth import AugDAWidthDataset
 from .APR import AprS
 import utils
 
@@ -103,6 +105,10 @@ def build_dataset(args, corrupted=False):
                                           args.mixture_alpha, args.mixture_beta, args.mixture_fix)
 
         elif aug == 'da':
+            """
+            no_jsd:  orig or (edsr or cae) 
+            jsd: orig, edsr, cae
+            """
             dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
             dataset2 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
             dataset3 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
@@ -112,6 +118,10 @@ def build_dataset(args, corrupted=False):
             train_dataset = DADataset(dataset, dataset2, dataset3, preprocess, False, no_jsd)
 
         elif aug == 'augda':
+            """
+            no_jsd:  augmix or (edsr or cae) 
+            jsd: orig, aug1, aug2, edsr, cae
+            """
             dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
 
             dataset = AugMixDataset(dataset, preprocess, no_jsd,
@@ -124,6 +134,47 @@ def build_dataset(args, corrupted=False):
             dataset3.data = np.load(root_dir + "/da/CAE.npy")
 
             train_dataset = DADataset(dataset, dataset2, dataset3, preprocess, True, no_jsd)
+
+
+        elif aug == 'augdaset':
+            """
+            augmix and da aug set -> augmix
+            mixture width = 3
+            no_jsd:  augdaset
+            jsd: orig, augda1, augda2
+            """
+            train_transform = transforms.Compose([transforms.RandomHorizontalFlip(),
+                                                  transforms.RandomCrop(32, padding=4)])
+            dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset2 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset3 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset2.data = np.load(root_dir + "/da/EDSR.npy")
+            dataset3.data = np.load(root_dir + "/da/CAE.npy")
+
+            train_dataset = AugDASetDataset(dataset, dataset2, dataset3, preprocess, no_jsd,
+                                    args.all_ops, args.da_prob, args.mixture_width, args.mixture_depth, args.aug_severity,
+                                    args.mixture_coefficient)
+
+        elif aug == 'augdawidth':
+            """
+            augmix and da aug set -> augmix
+            mixture width = 5
+            no_jsd:  augdaset
+            jsd: orig, augda1, augda2
+            """
+            train_transform = transforms.Compose([transforms.RandomHorizontalFlip(),
+                                                  transforms.RandomCrop(32, padding=4)])
+            dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset2 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset3 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
+            dataset2.data = np.load(root_dir + "/da/EDSR.npy")
+            dataset3.data = np.load(root_dir + "/da/CAE.npy")
+
+            mixture_width = 5
+
+            train_dataset = AugDAWidthDataset(dataset, dataset2, dataset3, preprocess, no_jsd,
+                                    args.all_ops, args.da_prob, mixture_width, args.mixture_depth, args.aug_severity,
+                                    args.mixture_coefficient)
 
         elif aug == 'prime':
             preprocess = transforms.Compose([transforms.ToTensor()])
