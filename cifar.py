@@ -127,6 +127,10 @@ def get_args_from_parser():
                                  'cossim',
                                  'csl2',
                                  'cslp',
+                                 'cslp_jsd',
+                                 'cslp_ce',
+                                 'aux_jsd',
+                                 'cssoftmax',
                                  'ssim',
                                  'ssim_multi',
                                  'njsd',
@@ -147,7 +151,7 @@ def get_args_from_parser():
                         help='Choose domain generalization augmentation methods')
     parser.add_argument('--aux-label',
                         type=str,
-                        default='none',
+                        default='target',
                         choices=['none', 'uniform', 'target', 'v0.1', 'v0.2', 'v0.3'],
                         help='aux dataset label')
     parser.add_argument('--aux-dataset', '-auxd',

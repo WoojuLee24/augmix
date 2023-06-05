@@ -188,27 +188,41 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
     return loss
 
 
-def get_additional_loss2(args, logits_clean, logits_aug1, logits_aug2,
-                        lambda_weight=12, targets=None, temper=1, reduction='batchmean', **kwargs):
+def get_additional_loss2(args, features_clean, features_aug1, features_aug2,
+                        hlambda_weight=12, targets=None,
+                        logits_clean=None, logits_aug1=None, logits_aug2=None, lambda_weight=12,
+                        reduction='batchmean', **kwargs):
 
     name = args.additional_loss2
     if name == 'none':
         loss, features = 0, dict()
     elif name == 'cossim':
-        loss, features = cossim(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
+        loss, features = cossim(features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction)
     elif name == 'csl2':
-        loss, features = csl2(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
+        loss, features = csl2(features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction)
     elif name == 'cslp':
-        loss, features = cslp(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction)
+        loss, features = cslp(features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction)
+    elif name == 'cslp_jsd':
+        loss, features = cslp_jsd(features_clean, features_aug1, features_aug2, hlambda_weight,
+                                  logits_clean, logits_aug1, logits_aug2, lambda_weight,
+                                  targets, args.temper, reduction)
+    elif name == 'cslp_ce':
+        loss, features = cslp_ce(features_clean, features_aug1, features_aug2, hlambda_weight,
+                                  logits_clean, logits_aug1, logits_aug2, lambda_weight,
+                                  targets, args.temper, reduction)
+    elif name == 'cssoftmax':
+        loss, features = cssoftmax(features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction)
     elif name == 'ssim':
-        loss, features = ssim(args, logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, args.temper, reduction='mean')
+        loss, features = ssim(args, features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction='mean')
     elif name == 'njsd':
-        loss, features = njsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
+        loss, features = njsd(features_clean, features_aug1, features_aug2, hlambda_weight, args.temper)
     elif name == 'msev1.1':
-        loss, features = msev1_1(logits_clean, logits_aug1, logits_aug2, lambda_weight)
+        loss, features = msev1_1(features_clean, features_aug1, features_aug2, hlambda_weight)
     elif name == 'msev1.0':
-        loss, features = msev1_0(logits_clean, logits_aug1, logits_aug2, lambda_weight)
+        loss, features = msev1_0(features_clean, features_aug1, features_aug2, hlambda_weight)
     elif name == 'jsd':
+        loss, features = jsd(features_clean, features_aug1, features_aug2, hlambda_weight, args.temper)
+    elif name == 'aux_jsd':
         loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
 
     return loss, features
@@ -2576,6 +2590,54 @@ def cslp(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=
 
     return loss, features
 
+
+def cslp_jsd(features_clean, features_aug1, features_aug2, hlambda_weight,
+             logits_clean, logits_aug1, logits_aug2, lambda_weight,
+             targets, temper=2, reduction='mean'):
+
+
+    loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper=1.0)
+
+    loss2, features2 = cslp(features_clean, features_aug1, features_aug2, hlambda_weight, targets, temper=2.0)
+
+    loss = loss + loss2
+    features.update(features2)
+
+    return loss, features
+
+
+def cslp_ce(features_clean, features_aug1, features_aug2, hlambda_weight,
+             logits_clean, logits_aug1, logits_aug2, lambda_weight,
+             targets, temper=2, reduction='mean'):
+
+
+    # loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper=1.0)
+    loss = lambda_weight * F.cross_entropy(logits_clean, targets)
+    loss2, features = cslp(features_clean, features_aug1, features_aug2, hlambda_weight, targets, temper=2.0)
+
+    loss = loss + loss2
+
+    return loss, features
+
+
+def cssoftmax(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=2, reduction='mean'):
+
+    logits_clean, logits_aug1, logits_aug2 = F.normalize(logits_clean, dim=1), \
+                                             F.normalize(logits_aug1, dim=1), \
+                                             F.normalize(logits_aug2, dim=1)
+
+
+    sim1 = torch.matmul(logits_clean, logits_aug1.T) / temper
+    loss1 = F.cross_entropy(sim1, targets)
+
+    sim1 = F.cosine_similarity(logits_clean, logits_aug1).pow(temper)
+    sim2 = F.cosine_similarity(logits_aug1, logits_aug2).pow(temper)
+    sim3 = F.cosine_similarity(logits_aug2, logits_clean).pow(temper)
+    logits = 1 - (sim1 + sim2 + sim3) / 3
+    loss = logits.mean() / temper * lambda_weight
+    features = {'distance': logits.mean().detach()}
+
+    return loss, features
 
 
 def ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=1):

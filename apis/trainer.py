@@ -2276,10 +2276,12 @@ class Trainer():
                 # # debug
                 # self.debug_images(aux_images, title='aux')
                 # self.debug_images(images, title='ori')
-                aux_images, _ = aux_data
+                aux_images, aux_targets = aux_data
                 aux_num = aux_images[1].size(0)
                 num = images.size(0)
-                aux_targets = 1 / self.classes * torch.ones(self.args.aux_num, self.classes)
+                if self.args.aux_label == 'uniform':
+                    aux_targets = 1 / self.classes * torch.ones(self.args.aux_num, self.classes)
+
                 if self.args.aux_type == 'unoise': # will be deprecated
                     # s1, s2 = self.args.aux_severity * (2 * torch.rand(2) - 1)
                     B, C, H, W = aux_images[1].size()
@@ -2291,8 +2293,6 @@ class Trainer():
                     aux_images[1] = aux_images[1] + s1 * unoise1
                     aux_images[2] = aux_images[2] + s2 * unoise2
 
-
-                targets = F.one_hot(targets).long()
                 aux_images = torch.cat(aux_images, dim=0)
                 images = torch.cat((images, aux_images), dim=0).to(self.device)
                 # images = torch.cat(([images], aux_images), dim=0).to(self.device)
@@ -2302,6 +2302,9 @@ class Trainer():
 
                 ce_loss_ori = F.cross_entropy(logits[:num], targets[:num])
                 # ce_loss_aux = F.cross_entropy(logits[-self.args.aux_num:], targets[-self.args.aux_num:])
+
+                aux_logits = logits[num:]
+                aux_logits_clean, aux_logits_aug1, aux_logits_aug2 = torch.chunk(aux_logits, 3)
 
                 # hook loss
                 if self.args.additional_loss2 != 'none':
@@ -2318,8 +2321,14 @@ class Trainer():
                                                                         feature_aug1.view(aux_num, -1), \
                                                                         feature_aug2.view(aux_num, -1)
                             # if multi hook layer -> have to be fixed.
+                            aux_targets = aux_targets.to(self.device)
                             hook_loss_aux, hfeature_aux = get_additional_loss2(self.args, feature_clean, feature_aug1,
-                                                                               feature_aug2, self.args.aux_hlambda)
+                                                                               feature_aug2, self.args.aux_hlambda,
+                                                                               targets=aux_targets,
+                                                                               logits_clean=aux_logits_clean,
+                                                                               logits_aug1=aux_logits_aug1,
+                                                                               logits_aug2=aux_logits_aug2,
+                                                                               lambda_weight=self.args.lambda_weight)
 
                 ce_loss = ce_loss_ori # + self.args.aux_lambda * ce_loss_aux
                 hook_loss = hook_loss_aux
@@ -2342,10 +2351,11 @@ class Trainer():
                 targets_aux = targets[num:num+aux_num].detach()
 
                 pred = logits_ori.data.max(1)[1]
-                labels = targets_ori.max(1)[1]
+                # labels = targets_ori.max(1)[1]
+                labels = targets_ori
 
                 correct += pred.eq(labels.data).sum().item()
-                uniform_error += (torch.abs(F.softmax(logits_aux, dim=-1) - targets_aux)).sum()
+                # uniform_error += (torch.abs(F.softmax(logits_aux, dim=-1) - targets_aux)).sum()
                 acc1, acc5 = accuracy(logits_ori, labels, topk=(1, 5))
 
                 self.wandb_input = self.net.get_wandb_input()
