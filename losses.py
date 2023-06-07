@@ -210,8 +210,15 @@ def get_additional_loss2(args, features_clean, features_aug1, features_aug2,
         loss, features = cslp_ce(features_clean, features_aug1, features_aug2, hlambda_weight,
                                   logits_clean, logits_aug1, logits_aug2, lambda_weight,
                                   targets, args.temper, reduction)
+    elif name == 'cslp_jsd_ce':
+        loss, features = cslp_jsd_ce(features_clean, features_aug1, features_aug2, hlambda_weight,
+                                  logits_clean, logits_aug1, logits_aug2, lambda_weight,
+                                  targets, args.temper, reduction)
     elif name == 'cssoftmax':
-        loss, features = cssoftmax(features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction)
+        loss, features = cssoftmax(args, features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction)
+    elif name == 'cslpsoftmax':
+        loss, features = cslpsoftmax(args, features_clean, features_aug1, features_aug2, hlambda_weight, targets,
+                                   args.temper, reduction)
     elif name == 'ssim':
         loss, features = ssim(args, features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction='mean')
     elif name == 'njsd':
@@ -2591,6 +2598,22 @@ def cslp(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=
     return loss, features
 
 
+def cslp_mean(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=2, reduction='mean'):
+
+    logits_clean, logits_aug1, logits_aug2 = F.normalize(logits_clean, dim=1), \
+                                             F.normalize(logits_aug1, dim=1), \
+                                             F.normalize(logits_aug2, dim=1),
+
+    sim1 = F.cosine_similarity(logits_clean, logits_aug1).pow(temper)
+    sim2 = F.cosine_similarity(logits_aug1, logits_aug2).pow(temper)
+    sim3 = F.cosine_similarity(logits_aug2, logits_clean).pow(temper)
+    logits = 1 - (sim1 + sim2 + sim3) / 3
+    loss = logits.mean() / temper * lambda_weight
+    features = {'distance': logits.mean().detach()}
+
+    return loss, features
+
+
 def cslp_jsd(features_clean, features_aug1, features_aug2, hlambda_weight,
              logits_clean, logits_aug1, logits_aug2, lambda_weight,
              targets, temper=2, reduction='mean'):
@@ -2620,25 +2643,95 @@ def cslp_ce(features_clean, features_aug1, features_aug2, hlambda_weight,
     return loss, features
 
 
-def cssoftmax(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=2, reduction='mean'):
+def cslp_jsd_ce(features_clean, features_aug1, features_aug2, hlambda_weight,
+                 logits_clean, logits_aug1, logits_aug2, lambda_weight,
+                 targets, temper=2, reduction='mean'):
 
-    logits_clean, logits_aug1, logits_aug2 = F.normalize(logits_clean, dim=1), \
-                                             F.normalize(logits_aug1, dim=1), \
-                                             F.normalize(logits_aug2, dim=1)
+    loss = F.cross_entropy(logits_clean, targets) # lambda_weight *
+    loss2, features2 = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, temper=1.0)
+    loss3, features3 = cslp(features_clean, features_aug1, features_aug2, hlambda_weight, targets, temper=2.0)
 
-
-    sim1 = torch.matmul(logits_clean, logits_aug1.T) / temper
-    loss1 = F.cross_entropy(sim1, targets)
-
-    sim1 = F.cosine_similarity(logits_clean, logits_aug1).pow(temper)
-    sim2 = F.cosine_similarity(logits_aug1, logits_aug2).pow(temper)
-    sim3 = F.cosine_similarity(logits_aug2, logits_clean).pow(temper)
-    logits = 1 - (sim1 + sim2 + sim3) / 3
-    loss = logits.mean() / temper * lambda_weight
-    features = {'distance': logits.mean().detach()}
+    loss = loss + loss2 + loss3
+    features = {'ce_loss_aux': loss}
+    features.update(features2)
+    features.update(features3)
 
     return loss, features
 
+
+def cssoftmax(args, features_clean, features_aug1, features_aug2, lambda_weight, targets, temper=1.0, reduction='mean'):
+
+    B, C = features_clean.size()
+    assert B % args.num_classes == 0, f"Batch is not divided by number of classes."
+    b = int(B // args.num_classes)
+
+    # new targets
+    target = [i for i in range(args.num_classes)]
+    targets = []
+    for i in range(b):
+        targets += target
+    targets = torch.as_tensor(targets).to(features_clean.device)
+
+    features_clean, features_aug1, features_aug2 = features_clean.view(b, -1, C), \
+                                                   features_aug1.view(b, -1, C), \
+                                                   features_aug2.view(b, -1, C)
+
+    # normalization with L2 norm. is scaling required?
+    features_clean, features_aug1, features_aug2 = F.normalize(features_clean, dim=-1), \
+                                                   F.normalize(features_aug1, dim=-1), \
+                                                   F.normalize(features_aug2, dim=-1)
+
+    sim1, sim2, sim3 = torch.bmm(features_clean, features_aug1.permute(0, 2, 1)) / temper, \
+                       torch.bmm(features_aug1, features_aug2.permute(0, 2, 1)) / temper, \
+                       torch.bmm(features_aug2, features_clean.permute(0, 2, 1)) / temper
+
+    sim1, sim2, sim3 = sim1.view(-1, args.num_classes), \
+                       sim2.view(-1, args.num_classes), \
+                       sim3.view(-1, args.num_classes)
+    sim = (sim1 + sim2 + sim3) / 3
+    loss = F.cross_entropy(sim, targets)
+    features = {'distance': loss.detach()}
+    loss = lambda_weight * loss
+
+    return loss, features
+
+
+def cslpsoftmax(args, features_clean, features_aug1, features_aug2, lambda_weight, targets, temper=1.0, reduction='mean'):
+
+    B, C = features_clean.size()
+    assert B % args.num_classes == 0, f"Batch is not divided by number of classes."
+    b = int(B // args.num_classes)
+    temper2 = args.temper2
+
+    # new targets
+    target = [i for i in range(args.num_classes)]
+    targets = []
+    for i in range(b):
+        targets += target
+    targets = torch.as_tensor(targets).to(features_clean.device)
+
+    features_clean, features_aug1, features_aug2 = features_clean.view(b, -1, C), \
+                                                   features_aug1.view(b, -1, C), \
+                                                   features_aug2.view(b, -1, C)
+
+    # normalization with L2 norm. is scaling required?
+    features_clean, features_aug1, features_aug2 = F.normalize(features_clean, dim=-1), \
+                                                   F.normalize(features_aug1, dim=-1), \
+                                                   F.normalize(features_aug2, dim=-1)
+
+    sim1, sim2, sim3 = torch.bmm(features_clean, features_aug1.permute(0, 2, 1)).pow(temper2) / temper, \
+                       torch.bmm(features_aug1, features_aug2.permute(0, 2, 1)).pow(temper2) / temper, \
+                       torch.bmm(features_aug2, features_clean.permute(0, 2, 1)).pow(temper2) / temper
+
+    sim1, sim2, sim3 = sim1.view(-1, args.num_classes), \
+                       sim2.view(-1, args.num_classes), \
+                       sim3.view(-1, args.num_classes)
+    sim = (sim1 + sim2 + sim3) / 3
+    loss = F.cross_entropy(sim, targets)
+    features = {'distance': loss.detach()}
+    loss = lambda_weight * loss
+
+    return loss, features
 
 def ntxent(logits_clean, logits_aug1, logits_aug2, lambda_weight, targets, temper=1):
 

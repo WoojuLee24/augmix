@@ -2265,7 +2265,6 @@ class Trainer():
             if self.wandb_logger is not None:
                 self.wandb_logger.before_train_iter()
             self.net.module.hook_features.clear()
-
             try:
                 aux_data = next(aux_iterator)
             except StopIteration:
@@ -2278,6 +2277,16 @@ class Trainer():
                 # self.debug_images(images, title='ori')
                 aux_images, aux_targets = aux_data
                 aux_num = aux_images[1].size(0)
+                if self.args.aux_sample == 'balanced':
+                    # rearranging the samples
+                    num_classes = 10
+                    rep = aux_num // num_classes
+                    inds_list = []
+                    for r in range(rep):
+                        inds_list += [i*rep + r for i in range(num_classes)]
+                    aux_targets = aux_targets[inds_list]
+                    for i in range(len(aux_images)):
+                        aux_images[i] = aux_images[i][inds_list]
                 num = images.size(0)
                 if self.args.aux_label == 'uniform':
                     aux_targets = 1 / self.classes * torch.ones(self.args.aux_num, self.classes)
@@ -2295,13 +2304,11 @@ class Trainer():
 
                 aux_images = torch.cat(aux_images, dim=0)
                 images = torch.cat((images, aux_images), dim=0).to(self.device)
-                # images = torch.cat(([images], aux_images), dim=0).to(self.device)
                 targets = torch.cat((targets, aux_targets), dim=0).to(self.device)
 
                 logits = self.net(images)
 
                 ce_loss_ori = F.cross_entropy(logits[:num], targets[:num])
-                # ce_loss_aux = F.cross_entropy(logits[-self.args.aux_num:], targets[-self.args.aux_num:])
 
                 aux_logits = logits[num:]
                 aux_logits_clean, aux_logits_aug1, aux_logits_aug2 = torch.chunk(aux_logits, 3)

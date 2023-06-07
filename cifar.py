@@ -111,6 +111,7 @@ def get_args_from_parser():
                                  ],
                         help='Type of additional loss')
     parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
+    parser.add_argument('--temper2', default=1.0, type=float, help='temperature scaling')
     parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
     parser.add_argument('--lambda-alpha', '-la', default=0.0, type=float, help='additional loss weight alpha')
     parser.add_argument('--lambda-beta', '-lb', default=1.0, type=float, help='additional loss weight beta')
@@ -127,10 +128,13 @@ def get_args_from_parser():
                                  'cossim',
                                  'csl2',
                                  'cslp',
+                                 'cslp_mean',
                                  'cslp_jsd',
                                  'cslp_ce',
+                                 'cslp_jsd_ce',
                                  'aux_jsd',
                                  'cssoftmax',
+                                 'cslpsoftmax',
                                  'ssim',
                                  'ssim_multi',
                                  'njsd',
@@ -166,6 +170,11 @@ def get_args_from_parser():
     parser.add_argument('--aux-prob', '-auxp',
                         type=float,
                         default=0.125,
+                        help='prop of aux augmentation applied')
+    parser.add_argument('--aux-sample', '-auxsp',
+                        type=str,
+                        default='none',
+                        choices=['none', 'balanced'],
                         help='prop of aux augmentation applied')
     parser.add_argument('--aux-type', '-auxt',  # will be deprecated
                         type=str,
@@ -348,6 +357,13 @@ def main():
     if args.aug == 'prime':
         if args.dataset == 'cifar10':
             args.prime = cifar10_cfg.get_config()
+
+    if args.dataset == 'cifar10':
+        args.num_classes = 10
+    elif args.dataset == 'cifar100':
+        args.num_classes = 100
+    elif args.dataset == 'imagenet':
+        args.num_classes = 1000
 
     #####################
     ### Load datasets ###
@@ -551,14 +567,14 @@ def main():
             #     train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
             elif args.aux_aug in ['daall']:
                 train_loss_ema, train_features, train_cms = trainer.train_auxa(train_loader, aux_loader)
-            elif args.aux_aug in ['da']:
-                # 0522~
-                # aug: da enabled
-                # cifar10 enabled
-                # aux_label == 'none', 'target', 'uniform'(TODO)
-                # lw2!=0 ->  logit aux JSD training
-                # aux_hlambda !=0, hook -> feature aux training
-                train_loss_ema, train_features, train_cms = trainer.train_auxhd2(train_loader, aux_loader) # 0522~, for da and aux label version
+            # elif args.aux_aug in ['da']:
+            #     # 0522~
+            #     # aug: da enabled
+            #     # cifar10 enabled
+            #     # aux_label == 'none', 'target', 'uniform'(TODO)
+            #     # lw2!=0 ->  logit aux JSD training
+            #     # aux_hlambda !=0, hook -> feature aux training
+            #     train_loss_ema, train_features, train_cms = trainer.train_auxhd2(train_loader, aux_loader) # 0522~, for da and aux label version
             elif (args.aux_dataset in ['fractals', 'imagenet', 'cifar10']) and (args.aux_hlambda!=0):
                 # ~0521
                 # aug: unoise (ul and noul), da (no ul) enabled

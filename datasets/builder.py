@@ -19,6 +19,8 @@ from .augdaset import AugDASetDataset
 from .augdawidth import AugDAWidthDataset
 from .APR import AprS
 import utils
+from .mperclass_sampler import MPerClassSampler
+
 
 def build_dataset(args, corrupted=False):
     dataset = args.dataset
@@ -307,11 +309,44 @@ def build_dataloader(train_dataset, test_dataset, args):
     return train_loader, test_loader
 
 def build_auxloader(aux_dataset, args):
-    aux_loader = torch.utils.data.DataLoader(aux_dataset,
-                                             batch_size=args.aux_num,
-                                             shuffle=args.shuffle,
-                                             num_workers=args.num_workers,
-                                             pin_memory=True)
 
+    if args.aux_sample == 'balanced':
+        targets = aux_dataset.dataset.targets
+        num_classes = len(aux_dataset.dataset.classes)
+        sampler = MPerClassSampler(targets, m=args.aux_num // num_classes, batch_size=args.aux_num)
+
+        aux_loader = torch.utils.data.DataLoader(aux_dataset,
+                                                 batch_size=args.aux_num,
+                                                 # shuffle=args.shuffle,
+                                                 sampler=sampler,
+                                                 num_workers=args.num_workers,
+                                                 pin_memory=True)
+    else:
+        aux_loader = torch.utils.data.DataLoader(aux_dataset,
+                                                 batch_size=args.aux_num,
+                                                 shuffle=args.shuffle,
+                                                 # sampler=sampler,
+                                                 num_workers=args.num_workers,
+                                                 pin_memory=True)
 
     return aux_loader
+
+
+# def sample_balanced_batch(dataset):
+#     num_classes = len(dataset.dataset.classes)
+#     targets = dataset.dataset.targets
+#
+#     # Determine the minimum number of samples per class
+#     min_samples = min([len(targets) // num_classes] * num_classes)
+#     # Create a list to store the indices of the selected samples per class
+#     indices = []
+#
+#     # Iterate over each class and randomly select a subset of indices
+#     for class_idx in range(num_classes):
+#         class_indices = torch.where(torch.tensor(targets) == class_idx)[0]
+#         selected_indices = torch.randperm(len(class_indices))[:min_samples]
+#         indices.extend(class_indices[selected_indices].tolist())
+#
+#     # Create a sampler using the selected indices
+#     sampler = SubsetRandomSampler(indices)
+#     return sampler
