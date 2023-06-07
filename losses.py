@@ -190,7 +190,6 @@ def get_additional_loss(args, logits_clean, logits_aug1, logits_aug2,
 
 def get_additional_loss2(args, features_clean, features_aug1, features_aug2,
                         hlambda_weight=12, targets=None,
-                        logits_clean=None, logits_aug1=None, logits_aug2=None, lambda_weight=12,
                         reduction='batchmean', **kwargs):
 
     name = args.additional_loss2
@@ -202,18 +201,6 @@ def get_additional_loss2(args, features_clean, features_aug1, features_aug2,
         loss, features = csl2(features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction)
     elif name == 'cslp':
         loss, features = cslp(features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction)
-    elif name == 'cslp_jsd':
-        loss, features = cslp_jsd(features_clean, features_aug1, features_aug2, hlambda_weight,
-                                  logits_clean, logits_aug1, logits_aug2, lambda_weight,
-                                  targets, args.temper, reduction)
-    elif name == 'cslp_ce':
-        loss, features = cslp_ce(features_clean, features_aug1, features_aug2, hlambda_weight,
-                                  logits_clean, logits_aug1, logits_aug2, lambda_weight,
-                                  targets, args.temper, reduction)
-    elif name == 'cslp_jsd_ce':
-        loss, features = cslp_jsd_ce(features_clean, features_aug1, features_aug2, hlambda_weight,
-                                  logits_clean, logits_aug1, logits_aug2, lambda_weight,
-                                  targets, args.temper, reduction)
     elif name == 'cssoftmax':
         loss, features = cssoftmax(args, features_clean, features_aug1, features_aug2, hlambda_weight, targets, args.temper, reduction)
     elif name == 'cslpsoftmax':
@@ -227,10 +214,14 @@ def get_additional_loss2(args, features_clean, features_aug1, features_aug2,
         loss, features = msev1_1(features_clean, features_aug1, features_aug2, hlambda_weight)
     elif name == 'msev1.0':
         loss, features = msev1_0(features_clean, features_aug1, features_aug2, hlambda_weight)
+    elif name == 'jsdv4.ntxent':
+        loss, features = jsdv4_ntxent(features_clean, features_aug1, features_aug2, hlambda_weight, args.temper, targets)
+    elif name == 'jsdv4.ntxentv0.01':
+        loss, features = jsdv4_ntxentv0_01(features_clean, features_aug1, features_aug2, hlambda_weight, args.temper, targets)
+    elif name == 'jsdv4.ntxentv0.02':
+        loss, features = jsdv4_ntxentv0_02(features_clean, features_aug1, features_aug2, hlambda_weight, args.temper, targets)
     elif name == 'jsd':
         loss, features = jsd(features_clean, features_aug1, features_aug2, hlambda_weight, args.temper)
-    elif name == 'aux_jsd':
-        loss, features = jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight, args.temper)
 
     return loss, features
 
@@ -3076,17 +3067,14 @@ def supcontrastv0_02(logits_clean, logits_aug1, logits_aug2, labels=None, lambda
     batch_size = logits_clean.size()[0]
     targets = labels
 
-    # temporary deprecated
-
-
     targets = targets.contiguous().view(-1, 1)
     mask_same_instance = torch.eye(batch_size, dtype=torch.float32).to(device)  # [B, B]
     mask_same_class = torch.eq(targets, targets.T).float()  # [B, B]
-    # mask_same_class_np = mask_same_class.detach().cpu().numpy()
+    mask_same_class_np = mask_same_class.detach().cpu().numpy()
     mask_diff_class = 1 - mask_same_class  # [B, B]
-    # mask_diff_class_np = mask_diff_class.detach().cpu().numpy()
+    mask_diff_class_np = mask_diff_class.detach().cpu().numpy()
     mask_same_instance_diff_class = mask_same_instance + mask_diff_class
-    # mask_same_instance_diff_class_np = mask_same_instance_diff_class.detach().cpu().numpy()
+    mask_same_instance_diff_class_np = mask_same_instance_diff_class.detach().cpu().numpy()
 
     loss1 = supcontrast_maskv0_01(logits_clean, logits_aug1, targets, mask_same_instance, mask_same_instance_diff_class, lambda_weight, temper)
     loss2 = supcontrast_maskv0_01(logits_clean, logits_aug2, targets, mask_same_instance, mask_same_instance_diff_class, lambda_weight, temper)
@@ -3496,17 +3484,6 @@ def _ssim(img1, img2, window, window_size, channel, reduction):
         return ssim_map.sum() / B / H / W
     else:
         return ssim_map.mean(1).mean(1).mean(1)
-
-
-# def ssim(img1, img2, window_size=11, size_average=True):
-#     (_, channel, _, _) = img1.size()
-#     window = create_window(window_size, channel)
-#
-#     if img1.is_cuda:
-#         window = window.cuda(img1.get_device())
-#     window = window.type_as(img1)
-#
-#     return _ssim(img1, img2, window, window_size, channel, size_average)
 
 
 def ssim(args, img_clean, img_aug1, img_aug2, lambda_weight, targets, temper=1, reduction='mean'):

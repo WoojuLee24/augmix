@@ -140,16 +140,17 @@ class Trainer():
                                                                    feature_aug2,
                                                                    self.args.aux_hlambda)
                     else:
+                        B, C, _, _ = feature_clean.size()
                         feature_clean, feature_aug1, feature_aug2 = feature_clean.view(B, -1), \
                                                                     feature_aug1.view(B, -1), \
                                                                     feature_aug2.view(B, -1)
-                        B, C = feature_clean.size()
                         # if multi hook layer -> have to be fixed.
                         hook_loss, hfeature = get_additional_loss2(self.args,
                                                                    feature_clean,
                                                                    feature_aug1,
                                                                    feature_aug2,
-                                                                   self.args.aux_hlambda)
+                                                                   self.args.lambda_weight2,
+                                                                   targets)
 
                 loss = ce_loss + additional_loss + hook_loss
 
