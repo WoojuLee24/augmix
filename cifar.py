@@ -549,22 +549,11 @@ def main():
         for epoch in range(start_epoch, args.epochs):
             wandb_logger.before_train_epoch() # wandb here
             begin_time = time.time()
-            if args.additional_loss in ['jsdv3.simsiam', 'jsdv3.simsiamv0.1']:
-                train_loss_ema, train_features = trainer.train3_simsiam(train_loader, epoch)
-            # elif args.additional_loss == 'jsdv3_apr_p':
-            #     train_loss_ema, train_features = trainer.train3_apr_p(train_loader, epoch)
-            elif (args.apr_p == True) or (args.aug == 'apr_s'):
-                train_loss_ema, train_features, train_cms = trainer.train_apr_p(train_loader)
-            elif args.model in ['wrnexpand', 'wrnexpand2']:
-                train_loss_ema, train_features = trainer.train_expand(train_loader)
-            # elif args.model == 'wrnauxbn':
-            #     train_loss_ema, train_features = trainer.train_auxbn(train_loader)
-            elif args.save_grad:
+
+            if args.save_grad:
                 train_loss_ema, train_features, train_cms = trainer.train_save_grad(train_loader)
             elif args.aug == "prime":
                 train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
-            # elif args.uniform_label in ['v0.1']:
-            #     train_loss_ema, train_features, train_cms = trainer.train_uniform_label(train_loader)
             elif args.aux_aug in ['daall']:
                 train_loss_ema, train_features, train_cms = trainer.train_auxa(train_loader, aux_loader)
             # elif args.aux_aug in ['da']:
@@ -582,10 +571,6 @@ def main():
                 train_loss_ema, train_features, train_cms = trainer.train_auxhd(train_loader, aux_loader)
             elif args.aux_dataset in ['fractals', 'imagenet']:
                 train_loss_ema, train_features, train_cms = trainer.train_auxd(train_loader, aux_loader)
-            elif args.aux_dataset in ['mmix']:
-                train_loss_ema, train_features, train_cms = trainer.train_mmix(train_loader, aux_loader)
-            elif args.cls_dg != -1:
-                train_loss_ema, train_features, train_cms = trainer.train_cls(train_loader)
             elif args.aug == 'augda':
                 train_loss_ema, train_features, train_cms = trainer.train_augda(train_loader)
             else:

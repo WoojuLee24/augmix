@@ -284,6 +284,7 @@ def jsd(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, temper=1.0):
 
     # Clamp mixture distribution to avoid exploding KL divergence
     p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+
     jsd_distance = (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
                     F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
                     F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
@@ -3335,7 +3336,7 @@ def jsdv4_ntxentv0_02(logits_clean, logits_aug1, logits_aug2, lambda_weight=12, 
     features = {'jsd_distance': jsd_distance.detach(),
                 'jsd_distance_diff_class': jsd_distance_diff_class.detach(),
                 'jsd_distance_same_class': jsd_distance_same_class.detach(),
-                'triplet_loss': triplet_loss,
+                'triplet_loss': triplet_loss.detach(),
                 }
 
     return loss, features

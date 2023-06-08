@@ -83,6 +83,7 @@ class Trainer():
         wandb_features = dict()
         total_ce_loss, total_additional_loss = 0., 0.
         ce_loss_, jsd_distance, hook_distance = 0., 0., 0.
+        hfeatures = {'jsd_distance': 0, 'jsd_distance_diff_class': 0, 'jsd_distance_same_class': 0, 'triplet_loss': 0}
         correct = 0.
 
         data_ema, batch_ema, loss_ema, acc1_ema, acc5_ema = 0., 0., 0., 0., 0.
@@ -122,9 +123,11 @@ class Trainer():
                 logits_clean, logits_aug1, logits_aug2 = torch.split(logits_all, images[0].size(0))
 
                 ce_loss = F.cross_entropy(logits_clean, targets)
+                # additional_loss = torch.tensor(0).to(self.device)
+                # feature = {'jsd_distance': additional_loss}
                 additional_loss, feature = get_additional_loss(self.args,
                                                                logits_clean, logits_aug1, logits_aug2,
-                                                               self.args.lambda_weight, targets, self.args.temper,
+                                                               self.args.lambda_weight, targets, 1,
                                                                self.args.reduction)
 
                 hook_loss = 0
@@ -160,7 +163,8 @@ class Trainer():
                 ce_loss_ += float(ce_loss.data)
                 jsd_distance += feature['jsd_distance'].detach()
                 for key, value in hfeature.items():
-                    hook_distance += value.detach()
+                    if key in hfeatures.keys():
+                        hfeatures[key] += value.detach()
 
                 # logging error
                 self.wandb_input = self.net.get_wandb_input()
@@ -207,6 +211,8 @@ class Trainer():
         wandb_features['train/jsd_distance'] = jsd_distance / denom
         # hook distance_aux
         wandb_features['train/hook_distance_aux'] = hook_distance / denom
+        for key, value in hfeatures.items():
+            wandb_features[f'train/{key}'] = value
         # error
         wandb_features['train/error'] = 100 - 100. * correct / len(data_loader.dataset)
         # lr
