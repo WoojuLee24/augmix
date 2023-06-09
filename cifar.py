@@ -59,14 +59,9 @@ def get_args_from_parser():
     parser.add_argument('--aug', '-aug',
                         type=str,
                         default='augmix',
-                        choices=['none', 'augmix', 'da', 'augda', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix',
+                        choices=['none', 'augmix', 'da', 'augda', 'pixmix', 'apr_s', 'prime',
                                  'augdaset', 'augdawidth'],
                         help='Choose domain generalization augmentation methods')
-    parser.add_argument('--aux-aug', '-auxa',
-                        type=str,
-                        default='none',
-                        choices=['none', 'da', 'daall', 'augmix', 'pixmix', 'augmixv2', 'apr_s', 'prime', 'ctrlaugmix'],
-                        help='Choose aux domain generalization augmentation methods')
 
     parser.add_argument('--shuffle', type=bool, default=True, help='shuffle or not')
 
@@ -79,7 +74,6 @@ def get_args_from_parser():
     parser.add_argument('--mixture-coefficient', '-mc', default=1.0, type=float, help='mixture coefficient alpha')
     parser.add_argument('--mixture-alpha', '-ma', default=1.0, type=float, help='mixture coefficient alpha')
     parser.add_argument('--mixture-beta', '-mb', default=1.0, type=float, help='mixture coefficient beta')
-    parser.add_argument('--mixture-fix', '-mf', action='store_true', help='mixture coefficient fix: use mixture-alpha as coefficient')
     parser.add_argument('--da-prob', default=1/3, type=float,
                         help='deepaugment probability for augdaset mode')
 
@@ -87,134 +81,39 @@ def get_args_from_parser():
     parser.add_argument('--additional-loss', '-al',
                         default='jsd',
                         type=str,
-                        choices=['none', 'jsd', 'jsd.manual', 'jsd.manual.ce','jsd_temper', 'pjsd',
-                                 'jsdvl_v0.1', 'jsdvl_v0.1.1', 'jsdvl_v0.1.2',
-                                 'jsd.skew',
-                                 'analysisv1.0',
-                                 'jsdv1',
-                                 'jsdv2', 'jsdv2.1',
-                                 'jsdv3', 'jsdv3.0.1', 'jsdv3.0.2', 'jsdv3.0.3', 'jsdv3.0.4',
-                                 'jsdv3.0.1.detach', 'jsdv3.0.2.detach', 'jsdv3.0.3.detach',
-                                 'jsdv3.test', 'jsdv3.1', 'jsdv3.1.1', 'jsdv3.log.inv', 'jsdv3.inv', 'jsdv3.msev1.0', 'jsdv3.msev1.1', 'jsdv3.msev1.0.detach',
-                                 'jsdv3.cossim', 'jsdv3.simsiam', 'jsdv3.simsiamv0.1',
-                                 'jsdv4',
-                                 'jsd.ntxent', 'jsd.ntxentv0.01', 'jsd.ntxentv0.02',
-                                 'jsdv3.ntxent', 'jsdv3.ntxentv0.01', 'jsdv3.ntxentv0.02', 'jsdv3.ntxent.detach',
+                        choices=['none', 'jsd',
                                  'kl',
-                                 'supconv0.01', 'supconv0.01_test', 'supconv0.01.diff',
-                                 'ntxent', 'center_loss', 'mlpjsd', 'mlpjsdv1.1', 'jsdv3_apr_p',
-                                 'nojsd_apr_p',
                                  'klv1.0', 'klv1.1', 'klv1.2', 'klv1.3',
-                                 'klv1.0.detach', 'klv1.1.detach', 'klv1.2.detach',
-                                 'klv1.0.inv', 'klv1.1.inv', 'klv1.2.inv',
-                                 'msev1.0', 'msev1.0.detach',
+                                 'msev1.0',
                                  ],
                         help='Type of additional loss')
-    parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
-    parser.add_argument('--temper2', default=1.0, type=float, help='temperature scaling')
-    parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
-    parser.add_argument('--lambda-alpha', '-la', default=0.0, type=float, help='additional loss weight alpha')
-    parser.add_argument('--lambda-beta', '-lb', default=1.0, type=float, help='additional loss weight beta')
-    parser.add_argument('--prob', default=0.1, type=float, help='prob for pjsd')
-
-    parser.add_argument('--additional-loss2', '-al2',
-                        default='none',
+    parser.add_argument('--reduction',
+                        default='batchmean',
                         type=str,
-                        choices=['none', 'jsd',
-                                 'jsdvl_v0.1',
-                                 'msev1.0', 'msev1.1',
-                                 'jsdv4.ntxent', 'jsdv4.ntxentv0.01', 'jsdv4.ntxentv0.02', 'jsdv4.ntxent.detach',
-                                 'opl',
-                                 'cossim',
-                                 'csl2',
-                                 'cslp',
-                                 'cslp_mean',
-                                 'cslp_jsd',
-                                 'cslp_ce',
-                                 'cslp_jsd_ce',
-                                 'aux_jsd',
-                                 'cssoftmax',
-                                 'cslpsoftmax',
-                                 'ssim',
-                                 'ssim_multi',
-                                 'njsd',
+                        choices=['batchmean', 'none', 'mean', 'sum',
                                  ],
-                        help='Type of additiona loss2')
-
-    parser.add_argument('--lambda-weight2', '-lw2', default=12.0, type=float, help='additional loss weight2')
-    parser.add_argument('--lambda-weight3', '-lw3', default=12.0, type=float, help='additional loss weight2')
-
+                        help='additional loss mean')
+    parser.add_argument('--temper', default=1.0, type=float, help='temperature scaling')
+    parser.add_argument('--lambda-weight', '-lw', default=12.0, type=float, help='additional loss weight')
     parser.add_argument('--skew', default=0.8, type=float, help='skew parameter for logit')
 
-
-    # uniform-label ##
-    parser.add_argument('--uniform-label', '-ul',
+    # feature loss
+    parser.add_argument('--additional-loss2', '-al2',
+                        default='jsd',
                         type=str,
-                        default='none',
-                        choices=['none', 'v0.1', 'v0.2', 'v0.3'],
-                        help='Choose domain generalization augmentation methods')
-    parser.add_argument('--aux-label',
-                        type=str,
-                        default='target',
-                        choices=['none', 'uniform', 'target', 'v0.1', 'v0.2', 'v0.3'],
-                        help='aux dataset label')
-    parser.add_argument('--aux-dataset', '-auxd',
-                        type=str,
-                        default='none',
-                        choices=['none', 'fractals', 'imagenet', 'mmix', 'cifar10'],
-                        help='Choose auxiliary datasets')
-    parser.add_argument('--aux-num', '-auxn',
-                        type=int,
-                        default=1,
-                        help='number of images with uniform labels')
-    parser.add_argument('--aux-prob', '-auxp',
-                        type=float,
-                        default=0.125,
-                        help='prop of aux augmentation applied')
-    parser.add_argument('--aux-sample', '-auxsp',
-                        type=str,
-                        default='none',
-                        choices=['none', 'balanced'],
-                        help='prop of aux augmentation applied')
-    parser.add_argument('--aux-type', '-auxt',  # will be deprecated
-                        type=str,
-                        default='none',
-                        choices=['none', 'unoise', 'gnoise', 'mix', 'mix_unoise', 'mixup_unoise', 'fractals'],
-                        help='number of images with uniform labels')
-    parser.add_argument('--aux-severity', '-auxs',  # will be deprecated
-                        type=float,
-                        default=1,
-                        help='severity of uniform noise,..')
-    parser.add_argument('--aux-lambda', '-auxl',
-                        type=float,
-                        default=1,
-                        help='lambda of uniform label loss')
-    parser.add_argument('--aux-lambda2', '-auxl2',
-                        type=float,
-                        default=1,
-                        help='lambda of additional loss')
-    parser.add_argument('--aux-hlambda', '-auxhl',
-                        type=float,
-                        default=1,
-                        help='lambda of uniform label loss')
-    parser.add_argument('--mmix-severity', '-mmixs',
-                        type=int,
-                        default=16,
-                        help='mmix number of images')
+                        choices=['none', 'jsd',
+                                 'kl',
+                                 'klv1.0', 'klv1.1', 'klv1.2', 'klv1.3',
+                                 'msev1.0',
+                                 'csl2',
+                                 'ssim',
+                                 ],
+                        help='Type of additional loss')
 
     ## ssim option ##
     parser.add_argument('--window', '-w', default=3, type=int, help='window size for gaussian')
 
-    ## opl option ##
-    parser.add_argument('--opl-norm', action='store_true', help='opl feature normalization')
-    parser.add_argument('--opl-attention', action='store_true', help='opl feature attention')
-    parser.add_argument('--opl-gamma', default=2, type=float, help='opl gamma parameter')
-
-    parser.add_argument('--reduction', default='batchmean', type=str, choices=['batchmean', 'mean'],
-                        help='temperature scaling')
-    parser.add_argument('--margin', default=0.02, type=float, help='triplet loss margin')
-    parser.add_argument('--jsd-layer', default='features', type=str, choices=['features', 'logits'],
-                        help='apply jsd loss for the selected layer')
+    ## hook option ##
     parser.add_argument('--hook', action='store_true', help='hook layers for feature extraction')
     parser.add_argument('--hook-layer', default='None', help='which layer to hook')
     parser.add_argument('--all-ops', '-all', action='store_true',
@@ -234,32 +133,15 @@ def get_args_from_parser():
     parser.add_argument('--model', '-m',
                         type=str,
                         default='wrn',
-                        choices=['wrn', 'wrnfc', 'wrnauxbn', 'wrnexpand', 'wrnexpand2', 'wrnproj', 'wrnsimsiam', 'allconv', 'densenet', 'resnext',
+                        choices=['wrn', 'allconv', 'densenet', 'resnext',
                                  ### imagenet ###
                                  'resnet50'],
                         help='Choose architecture.')
-    ### Siamese Architecture options
-    parser.add_argument('--siamese', '-siam', action='store_true', help='basic siamese network architecture')
+
     ## WRN Architecture options
     parser.add_argument('--layers', default=40, type=int, help='total number of layers')
     parser.add_argument('--widen-factor', default=2, type=int, help='Widen factor')
     parser.add_argument('--droprate', default=0.0, type=float, help='Dropout probability')
-
-    ## WRNExpand Architecture options
-    parser.add_argument('--expand-factor', default=2, type=int, help='Expand factor')
-
-    ## WRNAuxBN Architecture options
-    parser.add_argument('--aux', default=3, type=str, help='AuxBN factor')
-
-    ## WRNProj Architecture options
-    parser.add_argument('--proj-from', default='feature',  choices=['feature', 'logit'], type=str, help='proj from which layer')
-    parser.add_argument('--num-proj', default=2, type=int, help='number of proj fc layers')
-    parser.add_argument('--proj-in', default=128, type=int, help='channels of proj fc layers')
-    parser.add_argument('--proj-out', default=128, type=int, help='channels of proj fc layers')
-
-    ## WRNFc Architecture options
-    parser.add_argument('--fcnoise', default='none', type=str, help='fc noise type: none, unoise, gnoise,..')
-    parser.add_argument('--fcnoise-s', default=0.1, type=float, help='fc nosise severity')
 
     # Optimization options
     parser.add_argument('--epochs', '-e', type=int, default=100, help='Number of epochs to train.')
@@ -277,13 +159,6 @@ def get_args_from_parser():
 
     # Acceleration
     parser.add_argument('--num-workers', type=int, default=4, help='Number of pre-fetching threads.')
-
-    # save grad analysis options
-    parser.add_argument('--save-grad', '-sg', action='store_true', help='save gradient ')
-    parser.add_argument('--set-ops', '-sop', type=int, default=-1, help='select which operation to use')
-
-    # cls dg training
-    parser.add_argument('--cls-dg', '-cd', type=int, default=-1, help='which cls dg')
 
     # Log
     parser.add_argument('--evaluate', action='store_true', help='Eval only.')
@@ -329,22 +204,12 @@ def main():
         save_path = os.path.join(args.save, "analysis")
         if not os.path.exists(save_path):
             os.mkdir(save_path)
-    elif args.save_grad:
-        args.shuffle = False
-        if not args.resume=='':
-            resume_path = (args.resume).split('/')
-            resume_model = resume_path[-2]
-            name = resume_model + '_sg'
-            save_path = os.path.join(args.save, "sg")
-            if not os.path.exists(save_path):
-                os.mkdir(save_path)
     else:
-        # name = f"{args.aug}_{args.additional_loss}_b{args.batch_size}"
         save_path = args.save
         name = save_path.split("/")[-1]
 
     if args.wandb:
-        wandg_config = dict(project="Classification", entity='kaist-url-ai28', name=name,)#  resume=args.resume)
+        wandg_config = dict(project="hendrycks", entity='kaist-url-ai28', name=name,)#  resume=args.resume)
         wandb_logger = WandbLogger(wandg_config, args)
     else:
         wandb_logger = WandbLogger(None)
@@ -358,6 +223,12 @@ def main():
         if args.dataset == 'cifar10':
             args.prime = cifar10_cfg.get_config()
 
+
+
+    #####################
+    ### Load datasets ###
+    #####################
+
     if args.dataset == 'cifar10':
         args.num_classes = 10
     elif args.dataset == 'cifar100':
@@ -365,16 +236,8 @@ def main():
     elif args.dataset == 'imagenet':
         args.num_classes = 1000
 
-    #####################
-    ### Load datasets ###
-    #####################
-    train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset = build_dataset(args)
+    train_dataset, test_dataset, num_classes, base_c_path, prime_module = build_dataset(args)
     train_loader, test_loader = build_dataloader(train_dataset, test_dataset, args)
-    # if args.aux_type == 'fractals':
-    if args.aux_dataset in ['fractals', 'imagenet', 'cifar10']:
-        aux_loader = build_auxloader(aux_dataset, args)
-    else:
-        aux_loader = None
 
     ####################
     ### Create model ###
@@ -391,13 +254,7 @@ def main():
     ###################
     if args.hook:
         hook = FeatureHook([
-                            # "module.relu",
-                            "module.avgpool",
-                            # "module.proj.3"
-                            # "module.block1.layer.5.relu2",
-                            # "module.block2.layer.5.relu2",
-                            # "module.block3.layer.5.relu2",
-                            # 'module.block3',
+                            "module.avgpool",   # "module.proj.3" "module.block1.layer.5.relu2",
                             ])
         hook.hook_multi_layer(net)
     elif args.hook_layer != 'None':
@@ -521,15 +378,6 @@ def main():
     ### ELSE: Train mode ###
     ########################
     else:
-        # ### Scheduler ###
-        # scheduler = torch.optim.lr_scheduler.LambdaLR(
-        #     optimizer,
-        #     lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
-        #         step,
-        #         args.epochs * len(train_loader),
-        #         1,  # lr_lambda computes multiplicative factor
-        #         1e-6 / args.learning_rate))
-
         if not os.path.exists(args.save):
             os.makedirs(args.save)
         if not os.path.isdir(args.save):
@@ -550,39 +398,14 @@ def main():
             wandb_logger.before_train_epoch() # wandb here
             begin_time = time.time()
 
-            if args.save_grad:
-                train_loss_ema, train_features, train_cms = trainer.train_save_grad(train_loader)
-            elif args.aug == "prime":
+            if args.aug == "prime":
                 train_loss_ema, train_features, train_cms = trainer.train_prime(train_loader, prime_module)
-            elif args.aux_aug in ['daall']:
-                train_loss_ema, train_features, train_cms = trainer.train_auxa(train_loader, aux_loader)
-            # elif args.aux_aug in ['da']:
-            #     # 0522~
-            #     # aug: da enabled
-            #     # cifar10 enabled
-            #     # aux_label == 'none', 'target', 'uniform'(TODO)
-            #     # lw2!=0 ->  logit aux JSD training
-            #     # aux_hlambda !=0, hook -> feature aux training
-            #     train_loss_ema, train_features, train_cms = trainer.train_auxhd2(train_loader, aux_loader) # 0522~, for da and aux label version
-            elif (args.aux_dataset in ['fractals', 'imagenet', 'cifar10']) and (args.aux_hlambda!=0):
-                # ~0521
-                # aug: unoise (ul and noul), da (no ul) enabled
-                # fractals, imagenet, cifar10 enabled
-                train_loss_ema, train_features, train_cms = trainer.train_auxhd(train_loader, aux_loader)
-            elif args.aux_dataset in ['fractals', 'imagenet']:
-                train_loss_ema, train_features, train_cms = trainer.train_auxd(train_loader, aux_loader)
             elif args.aug == 'augda':
                 train_loss_ema, train_features, train_cms = trainer.train_augda(train_loader)
             else:
                 train_loss_ema, train_features, train_cms = trainer.train(train_loader)
 
-            # wandb_logger.after_train_epoch(dict(train_features=train_features))
-
             test_loss, test_acc, test_features, test_cm = tester.test(test_loader)
-            # wandb_logger.after_test_epoch(d
-            # cict(test_features=test_features, # wandb here
-            #                                    test_cm=test_cm))
-
             wandb_logger.log_evaluate(dict(train_features=train_features,
                                            train_cms=train_cms,
                                            test_features=test_features,
@@ -624,6 +447,9 @@ def main():
                 .format((epoch + 1), int(time.time() - begin_time), train_loss_ema,
                         test_loss, 100 - 100. * test_acc))
 
+        ################
+        ## final test ##
+        3###############
         test_loss, test_acc, _, test_cm = tester.test(test_loader)
         test_c_acc, test_c_table, test_c_cm = tester.test_c(test_dataset, base_c_path)
 
@@ -632,10 +458,6 @@ def main():
                                        test_c_table=test_c_table,
                                        test_c_acc=test_c_acc,
                                        test_c_cm=test_c_cm))
-
-        # wandb_logger.after_run(dict(test_c_table=test_c_table,  # wandb here
-        #                             test_c_acc=test_c_acc,
-        #                             test_c_cm=test_c_cm))
 
         print('Clean Error {:.2f}'.format(100 - 100. * test_acc))
         print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))

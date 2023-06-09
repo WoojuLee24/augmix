@@ -6,8 +6,6 @@ import numpy as np
 
 import augmentations
 from .mixdataset import BaseDataset, AugMixDataset
-from .ctrl_mixdataset import CtrlAugMixDataset
-from .mixdataset_v2 import AugMixDatasetv2
 from .prime.prime import GeneralizedPRIMEModule, PRIMEAugModule, TransformLayer
 from .prime.diffeomorphism import Diffeo
 from .prime.rand_filter import RandomFilter
@@ -19,7 +17,6 @@ from .augdaset import AugDASetDataset
 from .augdawidth import AugDAWidthDataset
 from .APR import AprS
 import utils
-from .mperclass_sampler import MPerClassSampler
 
 
 def build_dataset(args, corrupted=False):
@@ -97,14 +94,6 @@ def build_dataset(args, corrupted=False):
         elif aug == 'augmix':
             train_dataset = AugMixDataset(train_dataset, preprocess, no_jsd,
                                           args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity, args.mixture_coefficient)
-        elif aug == 'ctrlaugmix':
-            train_dataset = CtrlAugMixDataset(train_dataset, preprocess, no_jsd,
-                                              args.set_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
-                                              args.mixture_coefficient)
-        elif aug == 'augmixv2':
-            train_dataset = AugMixDatasetv2(train_dataset, preprocess, no_jsd,
-                                          args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
-                                          args.mixture_alpha, args.mixture_beta, args.mixture_fix)
 
         elif aug == 'da':
             """
@@ -233,66 +222,7 @@ def build_dataset(args, corrupted=False):
         elif aug == 'apr_s':
             train_dataset = AprS(train_dataset_apr, args, no_jsd)
 
-        #################
-        ## aux dataset ##
-        #################
-        no_jsd = False
-        if args.aux_dataset == 'fractals':
-            path = os.path.join('/ws/data', 'fractals_and_fvis')
-            aux_dataset = datasets.ImageFolder(path, transform=mixing_set_transform)
-
-        elif args.aux_dataset == 'imagenet':
-            path = os.path.join('/ws/data', args.aux_dataset, 'train')
-            aux_dataset = datasets.ImageFolder(path, transform=mixing_set_transform)
-
-        elif args.aux_dataset == 'cifar10':
-            aux_dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
-
-        elif args.aux_dataset == 'unoise':
-            path = os.path.join('/ws/data', args.aux_dataset, 'train')
-            aux_dataset = datasets.ImageFolder(path, transform=mixing_set_transform)
-            # aux_dataset = AugMixDataset(mixing_set, preprocess, no_jsd,
-            #                             args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
-            #                             args.mixture_coefficient)
-
-        if args.aux_aug == 'augmix':
-            aux_dataset = AugMixDataset(aux_dataset, preprocess, no_jsd,
-                                        args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
-                                        args.mixture_coefficient)
-        elif args.aux_aug == 'augmixv2':
-            aux_dataset = AugMixDatasetv2(aux_dataset, preprocess, no_jsd,
-                                          args.all_ops, args.mixture_width, args.mixture_depth, args.aug_severity,
-                                          args.mixture_coefficient,
-                                          mixture_fix=args.mixture_fix)
-
-        elif args.aux_aug == 'da':
-            aux_dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
-            aux_dataset2 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
-            aux_dataset3 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
-            aux_dataset2.data = np.load(root_dir + "/da/EDSR.npy")
-            aux_dataset3.data = np.load(root_dir + "/da/CAE.npy")
-
-            aux_dataset = DADataset(aux_dataset, aux_dataset2, aux_dataset3, preprocess, False, no_jsd)
-
-        elif args.aux_aug == 'daall':
-            # deepaugment all
-            aux_dataset = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
-            # aux_dataset2 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
-            # aux_dataset3 = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
-            # aux_dataset2.data = np.load(root_dir + "/daall/EDSR.npy")
-            # aux_dataset3.data = np.load(root_dir + "/daall/CAE.npy")
-
-            aux_datasets = [aux_dataset]
-            aux_augset = os.listdir(root_dir + "/daall/")
-            # debug
-            aux_augset = aux_augset[:2]
-            for aug in aux_augset:
-                d = datasets.CIFAR10(root_dir, train=True, transform=train_transform, download=True)
-                d.data = np.load(root_dir + "/daall/" + aug)
-                aux_datasets.append(d)
-            aux_dataset = DAallDataset(aux_datasets, preprocess, False, no_jsd)
-
-        return train_dataset, test_dataset, num_classes, base_c_path, prime_module, aux_dataset
+        return train_dataset, test_dataset, num_classes, base_c_path, prime_module
 
 
 def build_dataloader(train_dataset, test_dataset, args):

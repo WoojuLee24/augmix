@@ -31,9 +31,11 @@ class DADataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         if self.no_jsd:
             if np.random.uniform() < 0.5:
-                x, y = self.dataset2[i]
+                cae, y = self.dataset2[i]
+                x = self.preprocess(cae)
             else:
-                x, y = self.dataset1[i]
+                edsr, y = self.dataset1[i]
+                x = self.preprocess(edsr)
 
             return x, y
 
