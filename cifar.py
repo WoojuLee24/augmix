@@ -33,7 +33,7 @@ import torch.backends.cudnn as cudnn
 import numpy as np
 
 from apis import Trainer, Tester
-from models import build_net, build_loss, AdditionalLoss, get_lr
+from models import build_net, get_lr
 from datasets import *
 from utils import WandbLogger
 
@@ -243,11 +243,6 @@ def main():
     ### Create model ###
     ####################
     net = build_net(args, num_classes)
-
-    #######################
-    ### Additional loss ###
-    #######################
-    additional_loss = AdditionalLoss(args, num_classes, train_loader)
 
     ###################
     ### Hook layers ###

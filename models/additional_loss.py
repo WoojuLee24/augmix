@@ -1,5 +1,5 @@
 import torch
-from models.builder import build_net, build_loss, get_lr
+from models.builder import build_net, get_lr
 
 class AdditionalLoss():
     def __init__(self, args, num_classes, data_loader):

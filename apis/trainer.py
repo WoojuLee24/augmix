@@ -48,7 +48,7 @@ def imsave(image, folder, name):
 
 
 class Trainer():
-    def __init__(self, net, args, optimizer, scheduler, wandb_logger=None, device='cuda', additional_loss=None):
+    def __init__(self, net, args, optimizer, scheduler, wandb_logger=None, device='cuda'):
         self.net = net
         self.args = args
         self.optimizer = optimizer
@@ -57,7 +57,6 @@ class Trainer():
         self.wandb_logger = wandb_logger
         self.wandb_input = dict()
         self.device = device
-        self.additional_loss = additional_loss
 
         if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
             self.classes = 10

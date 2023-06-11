@@ -69,74 +69,8 @@ def build_net(args, num_classes):
     return net
 
 
-
-def build_projnet(args, num_classes):
-    if (args.dataset == 'cifar10') or (args.dataset == 'cifar100'):
-        if args.model == 'projnetv1':
-            net = projNetv1(args, num_classes)
-        elif args.model == 'projnetv1.1':
-            net = projNetv1_1(args, num_classes)
-        elif args.model == 'projnetv1.2':
-            net = projNetv1_2(args, num_classes)
-        elif args.model == 'projnetv1.3':
-            net = projNetv1_3(args, num_classes)
-        elif args.model == 'projnetv1.4':
-            net = projNetv1_4(args, num_classes)
-        elif args.model == 'projnetv1.5':
-            net = projNetv1_5(args, num_classes)
-        elif args.model == 'projnetv1.6':
-            net = projNetv1_6(args, num_classes)
-        elif args.model == 'projnetv1.1.1':
-            net = projNetv1_1_1(args, num_classes)
-        elif args.model == 'projnetv1.2.1':
-            net = projNetv1_2_1(args, num_classes)
-        elif args.model == 'projnetv1.3.1':
-            net = projNetv1_3_1(args, num_classes)
-        elif args.model == 'projnetv1.4.1':
-            net = projNetv1_4_1(args, num_classes)
-        elif args.model == 'projnetv1.5.1':
-            net = projNetv1_5_1(args, num_classes)
-        elif args.model == 'projnetv1.1.2':
-            net = projNetv1_1_2(args, num_classes)
-        elif args.model == 'projnetv1.1.3':
-            net = projNetv1_1_3(args, num_classes)
-        elif args.model == 'projnetv1.6.1':
-            net = projNetv1_6_1(args, num_classes)
-        elif args.model == 'projnetv1.6.2':
-            net = projNetv1_6_2(args, num_classes)
-        else:
-            raise NotImplemented('Not implemented!!')
-    else: # imagenet
-        if args.pretrained:
-            print("=> using pre-trained model '{}'".format(args.model))
-            net = models.__dict__[args.model](pretrained=True)
-        else:
-            print("=> creating model '{}'".format(args.model))
-            net = models.__dict__[args.model]()
-
-    net = MyDataParallel(net)
-    net = net.cuda()
-    cudnn.benchmark = True
-
-    return net
-
-
 def get_lr(step, total_steps, lr_max, lr_min):
     """Compute learning rate according to cosine annealing schedule."""
     return lr_min + (lr_max - lr_min) * 0.5 * (1 +
                                                np.cos(step / total_steps * np.pi))
-
-
-def build_loss(args, num_classes, train_loader):
-    if args.additional_loss == 'center_loss':
-        criterion_al = CenterLoss(num_classes=num_classes, feat_dim=2, use_gpu=True)
-    elif args.additional_loss == 'mlpjsd':
-        criterion_al = MlpJSDLoss(in_feature=128, out_feature=128)
-    elif args.additional_loss == 'supconv0.1':
-        criterion_al = SupConLoss(temperature=args.temper)
-    else:
-        return None
-
-    criterion_al = criterion_al.cuda()
-    return criterion_al
 

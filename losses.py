@@ -255,6 +255,20 @@ def ssim(args, img_clean, img_aug1, img_aug2, lambda_weight, targets, temper=1, 
 
     return loss, features
 
+
+def get_ssim(args, img_clean, img_aug1, reduction='mean'):
+
+    window_size = args.window
+    (_, channel, _, _) = img_clean.size()
+    window = create_window(window_size, channel)
+    if img_clean.is_cuda:
+        window = window.cuda(img_clean.get_device())
+    window = window.type_as(img_clean)
+
+    ssim = _ssim(img_clean, img_aug1, window, window_size, channel, reduction)
+    return ssim
+
+
 def ssim_multi(args, imgs, auxn, lambda_weight=12, temper=1, reduction='mean'):
 
     window_size = args.window
